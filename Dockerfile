@@ -19,6 +19,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+# INJETA O COMPOSER NO CONTÊINER (Linha adicionada para corrigir o erro)
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
 # Habilita o mod_rewrite para Laravel funcionar corretamente
 RUN a2enmod rewrite
 
