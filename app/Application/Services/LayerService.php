@@ -183,18 +183,46 @@ class LayerService
             throw $e;
         }
     }
-    public function getPublicLAyers(): array
-{
-    try {
-        Log::info('Fetching private layers');
 
-        return $this->layerRepository->getPublicLAyers();
-    } catch (\Exception $e) {
-        Log::error('Error fetching private layers', [
-            'error' => $e->getMessage(),
-            'stack' => $e->getTraceAsString()
-        ]);
-        throw $e;
+    public function getPublicLAyers(): array
+    {
+        try {
+            Log::info('Fetching public layers');
+
+            $layers = $this->layerRepository->getPublicLAyers();
+
+            // Mapeamos os objetos fechados (Entities) para Arrays puros
+            return array_map(function ($layer) {
+                return [
+                    'id'          => $layer->getId(),
+                    'name'        => $layer->getName(),
+                    'layer_name'  => $layer->getLayerName(),
+                    'crs'         => $layer->getCrs(),
+                    'legend_url'  => $layer->getLegendUrl(),
+                    'type'        => $layer->getType(),
+                    'description' => $layer->getDescription(),
+                    'order'       => $layer->getOrder(),
+                    'max_scale'   => $layer->getMaxScale(),
+                    'symbol'      => $layer->getSymbol(),
+                    'wms_link_id' => $layer->getWmsLinkId(),
+                    'is_public'   => $layer->IsPublic(),
+                    
+                    // Se a subcategoria for um objeto, pegamos só o ID para evitar outro bloqueio
+                    'subcategory' => $layer->getSubcategory() ? [
+                        'id' => is_object($layer->getSubcategory()) 
+                                ? $layer->getSubcategory()->getId() 
+                                : $layer->getSubcategory()
+                    ] : null
+                ];
+            }, $layers);
+
+        } catch (\Exception $e) {
+            Log::error('Error fetching public layers', [
+                'error' => $e->getMessage(),
+                'stack' => $e->getTraceAsString()
+            ]);
+            throw $e;
+        }
     }
-}
+   
 }

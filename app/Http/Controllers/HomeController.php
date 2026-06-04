@@ -22,30 +22,55 @@ class HomeController extends Controller
 
     public function index()
     {
-        // Adicionar lógica apra testar se é pública ou não
-        $layers = collect($this->layerService->getPublicLAyers()); // Converte para Collection
-        // dd($layers );
-        return view('pages.home', compact('layers'));
+        // O LayerService já está fazendo o trabalho de desempacotar e devolvendo o Array limpo!
+        $layers = $this->layerService->getPublicLAyers();
+
+        // Apenas repassamos o Array direto para o JSON
+        return response()->json([
+            'status' => 'success',
+            'data' => [
+                'layers' => $layers
+            ]
+        ], 200);
     }
 
     public function tile()
     {
-        return view('home.tile');
+        // Como antes devolvia apenas uma view sem dados (home.tile),
+        // deixamos este endpoint preparado para devolver configurações ou um status de sucesso.
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Endpoint de tile operacional.'
+        ], 200);
     }
 
     public function coord()
-
     {
-        $publicteLayers = $this->layerService->getPublicLAyers();
+        $publicLayers = $this->layerService->getPublicLAyers();
         
-        return view('home.coord',compact('publicteLayers'));
+        return response()->json([
+            'status' => 'success',
+            'data' => [
+                'layers' => $publicLayers
+            ]
+        ], 200);
     }
 
     public function search(Request $request)
     {
-        // $searchTerm = $request->input('search');
-        // $categories = $this->categoryFilterByTermUseCase->execute($searchTerm);
+        // O seu método de pesquisa já estava no caminho certo para ser uma API!
+        // Deixo-o comentado, mas já com a estrutura JSON padronizada.
+        
+        /*
+        $searchTerm = $request->input('search');
+        $categories = $this->categoryFilterByTermUseCase->execute($searchTerm);
 
-        // return response()->json($categories);
+        return response()->json([
+            'status' => 'success',
+            'data' => [
+                'categories' => $categories
+            ]
+        ], 200);
+        */
     }
 }
