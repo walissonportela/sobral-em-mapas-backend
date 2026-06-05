@@ -37,60 +37,61 @@ class LayerService
             throw $e;
         }
     }
+
     public function existsByLayerName(string $layerName): bool
-{
-    try {
-        Log::info('Checking if layer exists by layer_name', ['layer_name' => $layerName]);
+    {
+        try {
+            Log::info('Checking if layer exists by layer_name', ['layer_name' => $layerName]);
 
-        $exists = $this->layerRepository->existByName($layerName);
+            $exists = $this->layerRepository->existByName($layerName);
 
-        Log::info('Layer existence check result', ['layer_name' => $layerName, 'exists' => $exists]);
+            Log::info('Layer existence check result', ['layer_name' => $layerName, 'exists' => $exists]);
 
-        return $exists;
-    } catch (\Exception $e) {
-        Log::error('Error checking layer existence by layer_name', ['error' => $e->getMessage(), 'layer_name' => $layerName]);
-        throw $e;
+            return $exists;
+        } catch (\Exception $e) {
+            Log::error('Error checking layer existence by layer_name', ['error' => $e->getMessage(), 'layer_name' => $layerName]);
+            throw $e;
+        }
     }
-}
 
     // Método para atualizar um layer
     public function update(int $id, array $data): void
-{
-    try {
-        Log::info('Accessed LayerService@update', ['layer_id' => $id]);
+    {
+        try {
+            Log::info('Accessed LayerService@update', ['layer_id' => $id]);
 
-        // Buscar camada pelo ID
-        $layer = $this->layerRepository->findById($id);
-        if (!$layer) {
-            throw new \Exception('Camada não encontrada.');
+            // Buscar camada pelo ID
+            $layer = $this->layerRepository->findById($id);
+            if (!$layer) {
+                throw new \Exception('Camada não encontrada.');
+            }
+
+            // Atualizar atributos da camada
+            $layer->setName($data['name']);
+            $layer->setLayerName($data['layer_name']);
+            $layer->setCrs($data['crs'] ?? null);
+            $layer->setLegendUrl($data['legend_url'] ?? null);
+            $layer->setType($data['type'] ?? null);
+            $layer->setDescription($data['description'] ?? null);
+            $layer->setOrder($data['order'] ?? null);
+            $layer->setSubcategory($data['subcategory'] ?? null);
+            $layer->setMaxScale($data['max_scale'] ?? null);
+            $layer->setSymbol($data['symbol'] ?? null);
+            $layer->setWmsLinkId($data['wms_link_id']);
+            $layer->setIsPublic($data['isPublic'] ?? $layer->IsPublic());
+
+            // Atualizar no repositório
+            $this->layerRepository->update($layer);
+
+            Log::info('Layer updated successfully', ['layer_id' => $layer->getId()]);
+        } catch (\Exception $e) {
+            Log::error('Error updating layer', [
+                'error' => $e->getMessage(),
+                'layer_id' => $id,
+            ]);
+            throw $e;
         }
-
-        // Atualizar atributos da camada
-        $layer->setName($data['name']);
-        $layer->setLayerName($data['layer_name']);
-        $layer->setCrs($data['crs'] ?? null);
-        $layer->setLegendUrl($data['legend_url'] ?? null);
-        $layer->setType($data['type'] ?? null);
-        $layer->setDescription($data['description'] ?? null);
-        $layer->setOrder($data['order'] ?? null);
-        $layer->setSubcategory($data['subcategory'] ?? null);
-        $layer->setMaxScale($data['max_scale'] ?? null);
-        $layer->setSymbol($data['symbol'] ?? null);
-        $layer->setWmsLinkId($data['wms_link_id']);
-        $layer->setIsPublic($data['isPublic'] ?? $layer->IsPublic());
-
-        // Atualizar no repositório
-        $this->layerRepository->update($layer);
-
-        Log::info('Layer updated successfully', ['layer_id' => $layer->getId()]);
-    } catch (\Exception $e) {
-        Log::error('Error updating layer', [
-            'error' => $e->getMessage(),
-            'layer_id' => $id,
-        ]);
-        throw $e;
     }
-}
 
 
     // Método para deletar um layer
@@ -191,8 +192,35 @@ class LayerService
 
             $layers = $this->layerRepository->getPublicLAyers();
 
-            // Mapeamos os objetos fechados (Entities) para Arrays puros
             return array_map(function ($layer) {
+                
+                // 1. Extração segura dos dados da Subcategoria e Categoria
+                $subcategoryData = null;
+                $subcat = $layer->getSubcategory();
+
+                if ($subcat) {
+                    if (is_object($subcat)) {
+                        $subcategoryData = [
+                            'id' => method_exists($subcat, 'getId') ? $subcat->getId() : $subcat->id,
+                            'name' => method_exists($subcat, 'getName') ? $subcat->getName() : ($subcat->name ?? 'Diversos'),
+                        ];
+
+                        // Verifica se a subcategoria possui a categoria acoplada (Eager Loading)
+                        $cat = method_exists($subcat, 'getCategory') ? $subcat->getCategory() : ($subcat->category ?? null);
+                        
+                        if ($cat && is_object($cat)) {
+                            $subcategoryData['category'] = [
+                                'id' => method_exists($cat, 'getId') ? $cat->getId() : $cat->id,
+                                'name' => method_exists($cat, 'getName') ? $cat->getName() : ($cat->name ?? 'Geral'),
+                            ];
+                        }
+                    } else {
+                        // Se por acaso vier só o ID
+                        $subcategoryData = ['id' => $subcat];
+                    }
+                }
+
+                // 2. Retorno do array montado
                 return [
                     'id'          => $layer->getId(),
                     'name'        => $layer->getName(),
@@ -206,13 +234,7 @@ class LayerService
                     'symbol'      => $layer->getSymbol(),
                     'wms_link_id' => $layer->getWmsLinkId(),
                     'is_public'   => $layer->IsPublic(),
-                    
-                    // Se a subcategoria for um objeto, pegamos só o ID para evitar outro bloqueio
-                    'subcategory' => $layer->getSubcategory() ? [
-                        'id' => is_object($layer->getSubcategory()) 
-                                ? $layer->getSubcategory()->getId() 
-                                : $layer->getSubcategory()
-                    ] : null
+                    'subcategory' => $subcategoryData
                 ];
             }, $layers);
 
@@ -224,5 +246,4 @@ class LayerService
             throw $e;
         }
     }
-   
 }

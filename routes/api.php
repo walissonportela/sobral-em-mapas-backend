@@ -53,32 +53,32 @@ Route::post('/estatisticas', [EstatisticasController::class, 'registrar']);
 |--------------------------------------------------------------------------
 | 3. Rotas Administrativas (CRUD do Painel)
 |--------------------------------------------------------------------------
-| Nota: Futuramente, podemos envolver este grupo num middleware auth:sanctum
-| para blindar o acesso apenas a administradores.
 */
 Route::prefix('admin')->group(function () {
     
     // Gestão de Categorias
     Route::prefix('categories')->group(function () {
         Route::get('/', [CategoryController::class, 'index']);
-        Route::post('/', [CategoryController::class, 'create']);
+        Route::post('/', [CategoryController::class, 'store']); // Corrigido de 'create' para 'store'
+        Route::get('/{id}', [CategoryController::class, 'show']); // Para buscar 1 categoria
         Route::put('/{id}', [CategoryController::class, 'update']);
-        Route::delete('/{id}', [CategoryController::class, 'delete']);
+        Route::delete('/{id}', [CategoryController::class, 'destroy']); // Corrigido de 'delete' para 'destroy'
     });
 
     // Gestão de Subcategorias
     Route::prefix('subcategories')->group(function () {
         Route::get('/', [SubcategoryController::class, 'index']);
-        Route::post('/', [SubcategoryController::class, 'create']);
-        Route::put('/{id}', [SubcategoryController::class, 'update']);
-        Route::delete('/{id}', [SubcategoryController::class, 'delete']);
+        Route::post('/', [SubcategoryController::class, 'store']); // Corrigido de 'create' para 'store'
+        Route::get('/{subcategory}', [SubcategoryController::class, 'show']);
+        Route::put('/{subcategory}', [SubcategoryController::class, 'update']);
+        Route::delete('/{subcategory}', [SubcategoryController::class, 'destroy']); // Corrigido
     });
 
     // Gestão de Camadas (Layers)
     Route::prefix('layers')->group(function () {
         Route::get('/', [LayerController::class, 'index']);
         Route::post('/', [LayerController::class, 'store']);
-        Route::get('/{id}/edit', [LayerController::class, 'edit']); // Em APIs puras, costuma ser 'show', mas mantemos para compatibilidade do seu controller
+        Route::get('/{id}', [LayerController::class, 'show']); // Para preencher a edição no React
         Route::put('/{id}', [LayerController::class, 'update']);
         Route::delete('/{id}', [LayerController::class, 'destroy']);
     });
@@ -87,7 +87,7 @@ Route::prefix('admin')->group(function () {
     Route::prefix('wms')->group(function () {
         Route::get('/', [WmsController::class, 'index']);
         Route::post('/', [WmsController::class, 'store']);
-        Route::get('/{id}/edit', [WmsController::class, 'edit']);
+        Route::get('/{id}', [WmsController::class, 'show']);
         Route::put('/{id}', [WmsController::class, 'update']);
         Route::delete('/{id}', [WmsController::class, 'destroy']);
         Route::get('/{id}/layers', [WmsController::class, 'getWmsLayersByLink']);
@@ -97,9 +97,11 @@ Route::prefix('admin')->group(function () {
     Route::prefix('users')->group(function () {
         Route::get('/', [UserController::class, 'index']);
         Route::post('/', [UserController::class, 'store']);
-        Route::get('/{id}/edit', [UserController::class, 'edit']);
+        Route::get('/{id}', [UserController::class, 'show']);
         Route::put('/{id}', [UserController::class, 'update']);
         Route::delete('/{id}', [UserController::class, 'destroy']);
     });
+
+    Route::post('/login', [App\Http\Controllers\Api\AuthController::class, 'login']);
 
 });
