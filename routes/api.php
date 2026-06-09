@@ -14,6 +14,7 @@ use App\Http\Controllers\AdminController;
 use App\Http\Controllers\GeoServerProxyController;
 use App\Http\Controllers\ChatbotController;
 use App\Http\Controllers\EstatisticasController;
+use App\Http\Controllers\Api\ContactController;
 
 /*
 |--------------------------------------------------------------------------
@@ -48,6 +49,10 @@ Route::get('/proxy-wms', [GeoServerProxyController::class, 'proxyWms']);
 Route::get('/layer/legend', [GeoServerProxyController::class, 'getLegendGraphic']);
 Route::post('/send-message', [ChatbotController::class, 'sendMessage'])->name('chat.sendMessage');
 Route::post('/estatisticas', [EstatisticasController::class, 'registrar']);
+
+
+Route::post('/contact', [ContactController::class, 'send']);
+
 
 /*
 |--------------------------------------------------------------------------
