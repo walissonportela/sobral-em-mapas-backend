@@ -2,20 +2,22 @@
 
 namespace App\Infrastructure\Models;
 
+use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Notifications\Notifiable; // Adicione esta importação
+use Laravel\Sanctum\HasApiTokens;       // ADICIONE ESTA LINHA IMPORTANTE
 
-class User extends Model
+class User extends Authenticatable
 {
-    use HasFactory;
+    use HasApiTokens, HasFactory, Notifiable; // ADICIONE HasApiTokens AQUI
 
     // Tabela associada ao modelo
     protected $table = 'users';
 
     // Campos que podem ser atribuídos em massa
-    protected $fillable = ['name', 'email', 'login', 'password', 'profile_id'];
+    protected $fillable = ['name', 'email', 'login', 'password', 'profile_id', 'approved'];
 
-    // Ocultar campos sensíveis ao converter para array/JSON
+    // Ocultar campos sensíveis
     protected $hidden = ['password'];
 
     /**
@@ -26,4 +28,3 @@ class User extends Model
         return $this->belongsTo(Profile::class, 'profile_id');
     }
 }
-

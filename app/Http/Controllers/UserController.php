@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Application\Services\UserService;
 use Illuminate\Http\Request;
+use App\Infrastructure\Models\User; // Necessário para atualizar a flag approved
 
 class UserController extends Controller
 {
@@ -15,14 +16,17 @@ class UserController extends Controller
     }
 
     /**
-     * Lista todos os usuários
+     * Lista todos os usuários (Retorna JSON para o React)
      */
     public function index()
     {
         $users = $this->userService->getAllUsers();
-        return view('admin.users', [
+        $profiles = $this->userService->getAllProfiles();
+
+        return response()->json([
+            'success' => true,
             'users' => $users,
-            'profiles' => $this->userService->getAllProfiles() // Obtém perfis para popular o formulário
+            'profiles' => $profiles
         ]);
     }
 
@@ -37,6 +41,7 @@ class UserController extends Controller
             'login' => 'required|string|unique:users',
             'password' => 'required|string|min:6',
             'profile_id' => 'required|exists:profiles,id',
+            'approved' => 'sometimes|boolean' // Recebe a aprovação do React
         ]);
 
         $user = $this->userService->createUser(
@@ -47,11 +52,21 @@ class UserController extends Controller
             $validated['profile_id']
         );
 
-        return redirect()->route('admin.users.index')->with('success', 'Usuário criado com sucesso!');
+        // Se o React mandou a flag de aprovação na criação, atualiza o usuário
+        if (isset($validated['approved'])) {
+            $user->approved = $validated['approved'];
+            $user->save();
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Usuário criado com sucesso!',
+            'user' => $user->load('profile')
+        ], 201);
     }
 
     /**
-     * Atualiza um usuário existente
+     * Atualiza um usuário existente (Onde o Super Admin aprova e muda a role)
      */
     public function update(Request $request, string $id)
     {
@@ -61,8 +76,10 @@ class UserController extends Controller
             'login' => 'required|string|unique:users,login,' . $id,
             'password' => 'nullable|string|min:6', // Senha é opcional
             'profile_id' => 'required|exists:profiles,id',
+            'approved' => 'sometimes|boolean' // Flag de aprovação
         ]);
     
+        // Atualiza os dados pelo Service
         $this->userService->updateUser(
             $id,
             $validated['name'],
@@ -71,11 +88,21 @@ class UserController extends Controller
             $validated['password'], // Pode ser null
             $validated['profile_id']
         );
+
+        // Busca o usuário para atualizar a aprovação (caso tenha sido enviada)
+        $user = clone User::findOrFail($id);
+        if (isset($validated['approved'])) {
+            $user->approved = filter_var($validated['approved'], FILTER_VALIDATE_BOOLEAN);
+            $user->save();
+        }
     
-        return redirect()->route('admin.users.index')->with('success', 'Usuário atualizado com sucesso!');
+        return response()->json([
+            'success' => true,
+            'message' => 'Usuário atualizado com sucesso!',
+            'user' => $user->load('profile')
+        ], 200);
     }
     
-
     /**
      * Exclui um usuário
      */
@@ -83,6 +110,9 @@ class UserController extends Controller
     {
         $this->userService->deleteUser($id);
 
-        return redirect()->route('admin.users.index')->with('success', 'Usuário excluído com sucesso!');
+        return response()->json([
+            'success' => true,
+            'message' => 'Usuário excluído com sucesso!'
+        ]);
     }
 }

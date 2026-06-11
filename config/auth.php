@@ -54,7 +54,6 @@ return [
     | If you have multiple user tables or models you may configure multiple
     | sources which represent each model / table. These sources may then
     | be assigned to any extra authentication guards you have defined.
-    |
     | Supported: "database", "eloquent"
     |
     */
@@ -62,13 +61,9 @@ return [
     'providers' => [
         'users' => [
             'driver' => 'eloquent',
-            'model' => App\Models\User::class,
+            // Mude de App\Models\User::class para:
+            'model' => App\Infrastructure\Models\User::class, 
         ],
-
-        // 'users' => [
-        //     'driver' => 'database',
-        //     'table' => 'users',
-        // ],
     ],
 
     /*

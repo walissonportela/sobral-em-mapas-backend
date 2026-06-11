@@ -53,6 +53,9 @@ Route::post('/estatisticas', [EstatisticasController::class, 'registrar']);
 
 Route::post('/contact', [ContactController::class, 'send']);
 
+Route::post('/login', [App\Http\Controllers\Api\AuthController::class, 'login']);
+
+
 
 /*
 |--------------------------------------------------------------------------
@@ -106,7 +109,5 @@ Route::prefix('admin')->group(function () {
         Route::put('/{id}', [UserController::class, 'update']);
         Route::delete('/{id}', [UserController::class, 'destroy']);
     });
-
-    Route::post('/login', [App\Http\Controllers\Api\AuthController::class, 'login']);
 
 });

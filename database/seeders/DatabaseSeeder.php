@@ -14,10 +14,13 @@ class DatabaseSeeder extends Seeder
      */
     public function run()
     {
-        // Mantém a chamada do ProfileSeeder que já existia
+        // 1. Cria os perfis primeiro (Super Admin, Admin, Visitante)
         $this->call(ProfileSeeder::class);
 
-        // 1. Inserir Categorias
+        // 2. Cria os usuários padrão associados aos perfis (Adicionado aqui!)
+        $this->call(UsersSeeder::class);
+
+        // 3. Inserir Categorias
         DB::table('categories')->insert([
             ['name' => 'Mobilidade Urbana'],
             ['name' => 'Infraestrutura'],
@@ -25,7 +28,7 @@ class DatabaseSeeder extends Seeder
             ['name' => 'Saúde'],
         ]);
 
-        // 2. Inserir Subcategorias
+        // 4. Inserir Subcategorias
         DB::table('subcategories')->insert([
             ['id' => 1, 'name' => 'Transporte Público', 'category_id' => 1, 'created_at' => null, 'updated_at' => null],
             ['id' => 2, 'name' => 'Rotas Cicláveis', 'category_id' => 1, 'created_at' => null, 'updated_at' => null],
@@ -38,7 +41,7 @@ class DatabaseSeeder extends Seeder
             ['id' => 9, 'name' => 'Praças e Parques', 'category_id' => 2, 'created_at' => '2024-06-09 13:52:17', 'updated_at' => '2024-06-09 13:52:17'],
         ]);
 
-        // 3. Inserir Layers (Camadas)
+        // 5. Inserir Layers (Camadas)
         DB::table('layers')->insert([
             ['id' => 1, 'name' => 'Linha 1 do Transol', 'layer_name' => 'transol_linha_1', 'crs' => 'EPSG:4326', 'legend_url' => null, 'type' => 'WMS', 'description' => 'Linha que vai de a', 'order' => 0, 'subcategory' => 1, 'image_path' => null, 'created_at' => null, 'updated_at' => null, 'max_scale' => null, 'symbol' => null, 'wms_link_id' => null, 'isPublic' => 1],
             ['id' => 2, 'name' => 'Linha 2 do Transol', 'layer_name' => 'transol_linha_3', 'crs' => 'EPSG:4326', 'legend_url' => null, 'type' => 'WMS', 'description' => 'vem de la para ca', 'order' => 0, 'subcategory' => 1, 'image_path' => null, 'created_at' => null, 'updated_at' => null, 'max_scale' => null, 'symbol' => null, 'wms_link_id' => null, 'isPublic' => 1],
