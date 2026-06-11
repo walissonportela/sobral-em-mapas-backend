@@ -15,6 +15,7 @@ use App\Http\Controllers\GeoServerProxyController;
 use App\Http\Controllers\ChatbotController;
 use App\Http\Controllers\EstatisticasController;
 use App\Http\Controllers\Api\ContactController;
+use App\Http\Controllers\Api\Admin\DashboardController;
 
 /*
 |--------------------------------------------------------------------------
@@ -55,7 +56,14 @@ Route::post('/contact', [ContactController::class, 'send']);
 
 Route::post('/login', [App\Http\Controllers\Api\AuthController::class, 'login']);
 
-
+Route::middleware([
+    'auth:sanctum',
+    'role:Administrador,Agente'
+])
+    ->prefix('admin')
+    ->group(function () {
+        Route::get('/dashboard/stats', [DashboardController::class, 'stats']);
+    });
 
 /*
 |--------------------------------------------------------------------------
