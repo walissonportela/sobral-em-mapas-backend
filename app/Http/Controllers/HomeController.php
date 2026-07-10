@@ -3,27 +3,83 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
-use App\Infrastructure\Models\Layer; // Importe o model correto
+use App\Infrastructure\Models\Category;
+use App\Infrastructure\Models\Layer;
 use Illuminate\Http\Request;
 
 class HomeController extends Controller
 {
-    // Removi a dependência de Services temporariamente para simplificar
-    // e garantir que o carregamento dos relacionamentos funcione.
 
     public function index()
     {
-        // 1. Buscamos todas as camadas já carregando os relacionamentos (Eager Loading)
-        // Isso resolve o problema de o React receber apenas IDs.
-        $layers = Layer::with(['subcategory.category'])->get();
+        /*
+        * Dados públicos do mapa.
+        *
+        * Aqui só entram:
+        * - categorias ativas;
+        * - subcategorias ativas;
+        * - camadas ativas;
+        * - camadas públicas.
+        */
 
-        // 2. Devolvemos a estrutura completa para o React
+        $categories = Category::query()
+            ->where('is_active', true)
+            ->with([
+                'subcategories' => function ($query) {
+                    $query
+                        ->where('is_active', true)
+                        ->with([
+                            'layers' => function ($layerQuery) {
+                                $layerQuery
+                                    ->where('is_active', true)
+                                    ->where('isPublic', true)
+                                    ->orderBy('order')
+                                    ->orderBy('name');
+                            },
+                        ])
+                        ->orderBy('name');
+                },
+            ])
+            ->orderBy('name')
+            ->get();
+
+        $layers = Layer::with([
+                'subcategory.category',
+                'wmsLink',
+            ])
+            ->where('is_active', true)
+            ->where('isPublic', true)
+            ->where(function ($query) {
+                $query
+                    /*
+                    * Permite camadas sem subcategoria,
+                    * se um dia você quiser exibir como "Geral".
+                    */
+                    ->whereNull('subcategory')
+
+                    /*
+                    * Mas se houver subcategoria, ela e a categoria
+                    * precisam estar ativas.
+                    */
+                    ->orWhereHas('subcategory', function ($subcategoryQuery) {
+                        $subcategoryQuery
+                            ->where('is_active', true)
+                            ->whereHas('category', function ($categoryQuery) {
+                                $categoryQuery->where('is_active', true);
+                            });
+                    });
+            })
+            ->orderBy('order')
+            ->orderBy('name')
+            ->get();
+
         return response()->json([
-            'status' => 'success',
+            'success' => true,
             'data' => [
-                'layers' => $layers
-            ]
-        ], 200);
+                'categories' => $categories,
+                'layers' => $layers,
+            ],
+        ]);
     }
 
     public function tile()

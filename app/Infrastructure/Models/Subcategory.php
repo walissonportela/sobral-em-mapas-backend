@@ -2,23 +2,29 @@
 
 namespace App\Infrastructure\Models;
 
-use App\Infrastructure\Models\Category;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Subcategory extends Model
 {
-    use HasFactory;
+    protected $fillable = [
+        'name',
+        'category_id',
+        'is_active',
+    ];
 
-    protected $fillable = ['name', 'category_id'];
+    protected $casts = [
+        'is_active' => 'boolean',
+    ];
 
-    public function category()
+    public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class);
     }
 
-    public function layers()
+    public function layers(): HasMany
     {
-        return $this->hasMany(Layer::class);
+        return $this->hasMany(Layer::class, 'subcategory');
     }
 }

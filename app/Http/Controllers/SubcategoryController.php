@@ -2,129 +2,187 @@
 
 namespace App\Http\Controllers;
 
-use App\Application\Services\CategoryService;
-use App\Application\Services\SubcategoryService;
-use Illuminate\Http\RedirectResponse;
+use App\Infrastructure\Models\Category;
+use App\Infrastructure\Models\Subcategory;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
-use Barryvdh\Debugbar\Facades\Debugbar;
-
-use Exception;
+use Illuminate\Validation\Rule;
 
 class SubcategoryController extends Controller
 {
-    private SubcategoryService $subcategoryService;
-    private CategoryService $categoryService;
-
-    public function __construct(SubcategoryService $subcategoryService, CategoryService $categoryService)
+    public function index()
     {
-        $this->subcategoryService = $subcategoryService;
-        $this->categoryService = $categoryService;
+        $subcategories = Subcategory::with('category')
+            ->orderByDesc('is_active')
+            ->orderBy('name')
+            ->get();
+
+        $categories = Category::orderByDesc('is_active')
+            ->orderBy('name')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'subcategories' => $subcategories,
+            'categories' => $categories,
+        ]);
     }
 
-    // Método para listar, adicionar e editar subcategorias na mesma página
-    public function index(Request $request)
+    public function store(Request $request)
     {
-        
-        // Retrieve both categories and subcategories
-        $categories = $this->categoryService->getAll(); // Fetch categories
-        $subcategories = $this->subcategoryService->getAll(); // Fetch subcategories
+        $validated = $request->validate(
+            [
+                'name' => [
+                    'required',
+                    'string',
+                    'max:255',
+                    Rule::unique('subcategories', 'name')
+                        ->where(function ($query) use ($request) {
+                            return $query->where(
+                                'category_id',
+                                $request->input('category_id')
+                            );
+                        }),
+                ],
+                'category_id' => [
+                    'required',
+                    'integer',
+                    'exists:categories,id',
+                ],
+            ],
+            [
+                'name.required' => 'Informe o nome da subcategoria.',
+                'name.unique' => 'Já existe uma subcategoria com esse nome nesta categoria.',
+                'name.max' => 'O nome da subcategoria não pode ter mais de 255 caracteres.',
 
-        return view('admin.subcategories', compact('categories', 'subcategories'));
+                'category_id.required' => 'Selecione uma categoria.',
+                'category_id.exists' => 'A categoria selecionada é inválida.',
+            ]
+        );
+
+        $subcategory = Subcategory::create([
+            'name' => trim($validated['name']),
+            'category_id' => $validated['category_id'],
+            'is_active' => true,
+        ]);
+
+        $subcategory->load('category');
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Subcategoria criada com sucesso.',
+            'subcategory' => $subcategory,
+        ], 201);
     }
 
-    // CRUD methods for create, update, and delete remain unchanged...
-    
-    public function create(Request $request): RedirectResponse
+    public function show($id)
     {
-        
-        $data = $request->validate([
-            'name' => 'required|string|max:255',
-            'category_id' => 'required|integer|exists:categories,id', // Ensure the category exists
+        $subcategory = Subcategory::with('category')
+            ->findOrFail($id);
+
+        return response()->json([
+            'success' => true,
+            'subcategory' => $subcategory,
         ]);
-        $data['category_id'] = (int) $data['category_id'];
-        
-        try {
-            $this->subcategoryService->createSubcategory($data);
-            return redirect()->route('subcategories.index')->with('success', 'Subcategoria criada com sucesso.');
-        } catch (\InvalidArgumentException $e) {
-            Log::error("Erro de argumento inválido: " . $e->getMessage());
-            return redirect()->back()->withErrors($e->getMessage())->withInput();
-        } catch (Exception $e) {
-            Log::error("Erro inesperado: " . $e->getMessage());
-            return redirect()->back()->withErrors('Erro ao criar subcategoria: ' . $e->getMessage())->withInput();
-        }
     }
-    public function update(Request $request, int $id)
+
+    public function update(Request $request, $id)
     {
-        Log::info("Atualizando subcategoria com ID: {$id}", [
-            'request_data' => $request->all(), // Dados do request para depuração
+        $subcategory = Subcategory::findOrFail($id);
+
+        $validated = $request->validate(
+            [
+                'name' => [
+                    'required',
+                    'string',
+                    'max:255',
+                    Rule::unique('subcategories', 'name')
+                        ->where(function ($query) use ($request) {
+                            return $query->where(
+                                'category_id',
+                                $request->input('category_id')
+                            );
+                        })
+                        ->ignore($subcategory->id),
+                ],
+                'category_id' => [
+                    'required',
+                    'integer',
+                    'exists:categories,id',
+                ],
+            ],
+            [
+                'name.required' => 'Informe o nome da subcategoria.',
+                'name.unique' => 'Já existe uma subcategoria com esse nome nesta categoria.',
+                'name.max' => 'O nome da subcategoria não pode ter mais de 255 caracteres.',
+
+                'category_id.required' => 'Selecione uma categoria.',
+                'category_id.exists' => 'A categoria selecionada é inválida.',
+            ]
+        );
+
+        $subcategory->update([
+            'name' => trim($validated['name']),
+            'category_id' => $validated['category_id'],
         ]);
-    
-        // Validação dos dados de entrada
-        $data = $request->validate([
-            'name' => 'required|string|max:255',
-            'category_id' => 'required|integer|exists:categories,id', // Verifica a existência da categoria
+
+        $subcategory->load('category');
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Subcategoria atualizada com sucesso.',
+            'subcategory' => $subcategory,
         ]);
-        
-        Log::info($data); // Dados do request para d);
-        try {
-            // Tenta atualizar a subcategoria através do serviço
-            $updatedSubcategory = $this->subcategoryService->update($id, $data);
-    
-            // Resposta de sucesso
-            return response()->json([
-                'success' => true,
-                'message' => 'Subcategoria atualizada com sucesso.',
-                'name' => $data['name'],
-                'category_name' => $updatedSubcategory->category->name, // Exemplo de retorno da categoria associada
-            ]);
-        } catch (\InvalidArgumentException $e) {
-            // Tratamento de erro de validação
-            Log::error("Erro de validação: " . $e->getMessage());
+    }
+
+    public function updateStatus(Request $request, $id)
+    {
+        $request->validate(
+            [
+                'is_active' => [
+                    'required',
+                    'boolean',
+                ],
+            ],
+            [
+                'is_active.required' => 'Informe o status da subcategoria.',
+                'is_active.boolean' => 'O status da subcategoria é inválido.',
+            ]
+        );
+
+        $subcategory = Subcategory::findOrFail($id);
+
+        $subcategory->update([
+            'is_active' => $request->boolean('is_active'),
+        ]);
+
+        $subcategory->load('category');
+
+        return response()->json([
+            'success' => true,
+            'message' => $subcategory->is_active
+                ? 'Subcategoria ativada com sucesso.'
+                : 'Subcategoria desativada com sucesso.',
+            'subcategory' => $subcategory,
+        ]);
+    }
+
+    public function destroy($id)
+    {
+        $subcategory = Subcategory::withCount('layers')
+            ->findOrFail($id);
+
+        if ($subcategory->layers_count > 0) {
             return response()->json([
                 'success' => false,
-                'message' => $e->getMessage(),
-            ], 400);
-        } catch (\Exception $e) {
-            // Tratamento de outros erros específicos
-            if ($e->getMessage() === 'Subcategoria não encontrada.') {
-                Log::error("Erro: " . $e->getMessage());
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Subcategoria não encontrada.',
-                ], 404);
-            } elseif ($e->getMessage() === 'Uma subcategoria com esse nome já existe.') {
-                Log::error("Erro: " . $e->getMessage());
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Uma subcategoria com esse nome já existe.',
-                ], 409); // Código HTTP 409 para conflito
-            } else {
-                Log::error("Erro inesperado: " . $e->getMessage());
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Erro inesperado ao atualizar a subcategoria.',
-                ], 500);
-            }
+                'message' => 'Não é possível excluir definitivamente uma subcategoria que possui camadas vinculadas.',
+            ], 422);
         }
+
+        $subcategory->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Subcategoria excluída definitivamente com sucesso.',
+        ]);
     }
-    
-  
-
-
-    
-        // Método para excluir uma subcategoria
-        public function delete($id): RedirectResponse
-        {
-            //dd($id);
-            try {
-                $this->subcategoryService->deleteSubcategory($id);
-                return redirect()->route('subcategories.index')->with('success', 'Subcategoria excluída com sucesso.');
-            } catch (\Exception $e) {
-                Log::error("Erro ao excluir subcategoria: " . $e->getMessage());
-                return redirect()->back()->withErrors('Erro ao excluir subcategoria: ' . $e->getMessage());
-            }
-        }
-    
 }

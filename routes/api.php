@@ -163,6 +163,11 @@ Route::middleware([
                 'store',
             ]);
 
+            Route::patch('/{id}/status', [
+                CategoryController::class,
+                'updateStatus',
+            ]);
+
             Route::get('/{id}', [
                 CategoryController::class,
                 'show',
@@ -185,7 +190,7 @@ Route::middleware([
         |--------------------------------------------------------------------------
         */
 
-        Route::prefix('subcategories')->group(function () {
+       Route::prefix('subcategories')->group(function () {
             Route::get('/', [
                 SubcategoryController::class,
                 'index',
@@ -196,17 +201,22 @@ Route::middleware([
                 'store',
             ]);
 
-            Route::get('/{subcategory}', [
+            Route::patch('/{id}/status', [
+                SubcategoryController::class,
+                'updateStatus',
+            ]);
+
+            Route::get('/{id}', [
                 SubcategoryController::class,
                 'show',
             ]);
 
-            Route::put('/{subcategory}', [
+            Route::put('/{id}', [
                 SubcategoryController::class,
                 'update',
             ]);
 
-            Route::delete('/{subcategory}', [
+            Route::delete('/{id}', [
                 SubcategoryController::class,
                 'destroy',
             ]);
@@ -227,6 +237,11 @@ Route::middleware([
             Route::post('/', [
                 LayerController::class,
                 'store',
+            ]);
+
+            Route::patch('/{id}/status', [
+                LayerController::class,
+                'updateStatus',
             ]);
 
             Route::get('/{id}', [

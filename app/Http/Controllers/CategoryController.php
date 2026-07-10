@@ -1,64 +1,182 @@
 <?php
 
 namespace App\Http\Controllers;
-use App\Models\Category;
+
+use App\Infrastructure\Models\Category;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class CategoryController extends Controller
 {
-    // Devolve as categorias em JSON para o React montar a tabela/sidebar
     public function index()
     {
-        $categories = Category::all();
-        return response()->json($categories, 200);
+        $categories = Category::with([
+                'subcategories' => function ($query) {
+                    $query
+                        ->orderByDesc('is_active')
+                        ->orderBy('name');
+                },
+            ])
+            ->withCount('subcategories')
+            ->orderByDesc('is_active')
+            ->orderBy('name')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'categories' => $categories,
+        ]);
     }
 
-    // Salva a nova categoria e devolve a resposta em JSON
     public function store(Request $request)
     {
-        $request->validate([
-            'name' => 'required|string|max:255|unique:categories',
+        $validated = $request->validate(
+            [
+                'name' => [
+                    'required',
+                    'string',
+                    'max:255',
+                    'unique:categories,name',
+                ],
+            ],
+            [
+                'name.required' => 'Informe o nome da categoria.',
+                'name.unique' => 'Já existe uma categoria com esse nome.',
+                'name.max' => 'O nome da categoria não pode ter mais de 255 caracteres.',
+            ]
+        );
+
+        $category = Category::create([
+            'name' => trim($validated['name']),
+            'is_active' => true,
         ]);
 
-        $category = Category::create($request->all());
+        $category->load('subcategories');
+        $category->loadCount('subcategories');
 
         return response()->json([
+            'success' => true,
             'message' => 'Categoria criada com sucesso.',
-            'category' => $category
-        ], 201); // 201 Created
+            'category' => $category,
+        ], 201);
     }
 
-    // Busca uma categoria específica para preencher o Modal de Edição no React
     public function show($id)
     {
-        $category = Category::findOrFail($id);
-        return response()->json($category, 200);
-    }
-
-    // Atualiza a categoria via API
-    public function update(Request $request, $id)
-    {
-        $request->validate([
-            'name' => 'required|string|max:255|unique:categories,name,' . $id,
-        ]);
-
-        $category = Category::findOrFail($id);
-        $category->update($request->all());
+        $category = Category::with([
+                'subcategories' => function ($query) {
+                    $query
+                        ->orderByDesc('is_active')
+                        ->orderBy('name');
+                },
+            ])
+            ->withCount('subcategories')
+            ->findOrFail($id);
 
         return response()->json([
-            'message' => 'Categoria atualizada com sucesso.',
-            'category' => $category
-        ], 200);
+            'success' => true,
+            'category' => $category,
+        ]);
     }
 
-    // Deleta a categoria via API
-    public function destroy($id)
+    public function update(Request $request, $id)
     {
         $category = Category::findOrFail($id);
+
+        $validated = $request->validate(
+            [
+                'name' => [
+                    'required',
+                    'string',
+                    'max:255',
+                    Rule::unique('categories', 'name')->ignore($category->id),
+                ],
+            ],
+            [
+                'name.required' => 'Informe o nome da categoria.',
+                'name.unique' => 'Já existe uma categoria com esse nome.',
+                'name.max' => 'O nome da categoria não pode ter mais de 255 caracteres.',
+            ]
+        );
+
+        $category->update([
+            'name' => trim($validated['name']),
+        ]);
+
+        $category->load([
+            'subcategories' => function ($query) {
+                $query
+                    ->orderByDesc('is_active')
+                    ->orderBy('name');
+            },
+        ]);
+
+        $category->loadCount('subcategories');
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Categoria atualizada com sucesso.',
+            'category' => $category,
+        ]);
+    }
+
+    public function updateStatus(Request $request, $id)
+    {
+        $request->validate(
+            [
+                'is_active' => [
+                    'required',
+                    'boolean',
+                ],
+            ],
+            [
+                'is_active.required' => 'Informe o status da categoria.',
+                'is_active.boolean' => 'O status da categoria é inválido.',
+            ]
+        );
+
+        $category = Category::findOrFail($id);
+
+        $category->update([
+            'is_active' => $request->boolean('is_active'),
+        ]);
+
+        $category->load([
+            'subcategories' => function ($query) {
+                $query
+                    ->orderByDesc('is_active')
+                    ->orderBy('name');
+            },
+        ]);
+
+        $category->loadCount('subcategories');
+
+        return response()->json([
+            'success' => true,
+            'message' => $category->is_active
+                ? 'Categoria ativada com sucesso.'
+                : 'Categoria desativada com sucesso.',
+            'category' => $category,
+        ]);
+    }
+
+    public function destroy($id)
+    {
+        $category = Category::withCount('subcategories')
+            ->findOrFail($id);
+
+        if ($category->subcategories_count > 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Não é possível excluir definitivamente uma categoria que possui subcategorias.',
+            ], 422);
+        }
+
         $category->delete();
 
         return response()->json([
-            'message' => 'Categoria excluída com sucesso.'
-        ], 200);
+            'success' => true,
+            'message' => 'Categoria excluída definitivamente com sucesso.',
+        ]);
     }
 }

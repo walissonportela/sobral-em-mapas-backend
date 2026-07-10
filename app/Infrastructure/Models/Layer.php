@@ -4,9 +4,7 @@ namespace App\Infrastructure\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use App\Infrastructure\Models\Subcategory;
-use App\Infrastructure\Models\Category; // IMPORTANTE: Importe o modelo de categoria
-use App\Infrastructure\Models\WmsLink;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Layer extends Model
 {
@@ -15,24 +13,37 @@ class Layer extends Model
     protected $table = 'layers';
 
     protected $fillable = [
-        'name', 'layer_name', 'crs', 'legend_url', 'type', 'description', 
-        'order', 'subcategory', 'image_path', 'max_scale', 'symbol', 
-        'wms_link_id', 'isPublic'
+        'name',
+        'layer_name',
+        'crs',
+        'legend_url',
+        'type',
+        'description',
+        'order',
+        'subcategory',
+        'image_path',
+        'max_scale',
+        'symbol',
+        'wms_link_id',
+        'isPublic',
+        'is_active',
     ];
 
-    protected $dates = ['created_at', 'updated_at'];
+    protected $casts = [
+        'order' => 'integer',
+        'subcategory' => 'integer',
+        'wms_link_id' => 'integer',
+        'max_scale' => 'float',
+        'isPublic' => 'boolean',
+        'is_active' => 'boolean',
+    ];
 
-    // Relacionamento direto com Subcategory
-    public function subcategory()
+    public function subcategory(): BelongsTo
     {
         return $this->belongsTo(Subcategory::class, 'subcategory');
     }
 
-    // ATALHO: Isso permite que você acesse layer->subcategory->category
-    // O Laravel já entende esse caminho naturalmente se a subcategory tiver a relação com category
-    
-    // Relacionamento com WmsLink
-    public function wmsLink()
+    public function wmsLink(): BelongsTo
     {
         return $this->belongsTo(WmsLink::class, 'wms_link_id');
     }
