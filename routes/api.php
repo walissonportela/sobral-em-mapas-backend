@@ -277,9 +277,6 @@ Route::middleware([
                 'store',
             ]);
 
-            /*
-             * Deve aparecer antes da rota /{id}.
-             */
             Route::get('/{id}/layers', [
                 WmsController::class,
                 'getWmsLayersByLink',
@@ -300,6 +297,7 @@ Route::middleware([
                 'destroy',
             ]);
         });
+        
     });
 
 /*
