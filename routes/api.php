@@ -1,11 +1,10 @@
 <?php
 
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
-| Controllers públicos / gerais
+| Controllers públicos e gerais
 |--------------------------------------------------------------------------
 */
 
@@ -34,44 +33,59 @@ use App\Http\Controllers\Api\Admin\DashboardController;
 | API Routes - Sobral em Mapas
 |--------------------------------------------------------------------------
 |
-| Todas as rotas deste arquivo retornam JSON para o frontend React.
-|
 | Perfis atuais:
-| - Administrador: controle administrativo completo
-| - Agente: acesso administrativo operacional
-| - Visitante: acesso comum ao mapa
+|
+| Administrador:
+| - controle administrativo completo;
+| - gestão de usuários;
+| - gestão de mapas e camadas.
+|
+| Agente:
+| - dashboard;
+| - categorias;
+| - subcategorias;
+| - camadas;
+| - links WMS.
+|
+| Visitante:
+| - acesso ao mapa;
+| - futuramente favoritos, impressões e preferências.
 |
 */
 
 /*
 |--------------------------------------------------------------------------
-| 1. Autenticação
+| 1. Autenticação e cadastro
 |--------------------------------------------------------------------------
-|
-| Rotas responsáveis por login, logout e recuperação do usuário logado.
-|
 */
 
-Route::post('/login', [AuthController::class, 'login']);
+/*
+ * Limita tentativas repetidas de login.
+ */
+Route::middleware('throttle:6,1')
+    ->post('/login', [AuthController::class, 'login']);
 
+/*
+ * Cadastro público.
+ *
+ * O perfil e o status de aprovação são definidos exclusivamente
+ * pelo backend.
+ */
+Route::middleware('throttle:5,1')
+    ->post('/register', [AuthController::class, 'register']);
+
+/*
+ * Rotas que precisam de um token Sanctum válido.
+ */
 Route::middleware('auth:sanctum')->group(function () {
-    Route::get('/me', function (Request $request) {
-        return response()->json([
-            'success' => true,
-            'user' => $request->user()->load('profile'),
-        ]);
-    });
-
+    Route::get('/me', [AuthController::class, 'me']);
     Route::post('/logout', [AuthController::class, 'logout']);
 });
 
 /*
 |--------------------------------------------------------------------------
-| 2. Rotas Públicas do Mapa
+| 2. Rotas públicas do mapa
 |--------------------------------------------------------------------------
-|
-| Essas rotas são usadas pelo mapa público e não exigem login.
-|
 */
 
 Route::get('/map-data', [HomeController::class, 'index']);
@@ -80,35 +94,39 @@ Route::get('/coord', [HomeController::class, 'coord']);
 
 /*
 |--------------------------------------------------------------------------
-| 3. Integrações Públicas / Ferramentas
+| 3. Integrações e ferramentas públicas
 |--------------------------------------------------------------------------
-|
-| Proxy WMS, legenda, chatbot, estatísticas públicas e contato.
-|
 */
 
-Route::get('/proxy-wms', [GeoServerProxyController::class, 'proxyWms']);
-Route::get('/layer/legend', [GeoServerProxyController::class, 'getLegendGraphic']);
+Route::get('/proxy-wms', [
+    GeoServerProxyController::class,
+    'proxyWms',
+]);
 
-Route::post('/send-message', [ChatbotController::class, 'sendMessage'])
-    ->name('chat.sendMessage');
+Route::get('/layer/legend', [
+    GeoServerProxyController::class,
+    'getLegendGraphic',
+]);
 
-Route::post('/estatisticas', [EstatisticasController::class, 'registrar']);
+Route::post('/send-message', [
+    ChatbotController::class,
+    'sendMessage',
+])->name('chat.sendMessage');
 
-Route::post('/contact', [ContactController::class, 'send']);
+Route::post('/estatisticas', [
+    EstatisticasController::class,
+    'registrar',
+]);
+
+Route::post('/contact', [
+    ContactController::class,
+    'send',
+]);
 
 /*
 |--------------------------------------------------------------------------
-| 4. Rotas Administrativas - Administrador e Agente
+| 4. Rotas administrativas - Administrador e Agente
 |--------------------------------------------------------------------------
-|
-| Rotas acessíveis por:
-| - Administrador
-| - Agente
-|
-| Aqui ficam recursos operacionais do WebGIS:
-| dashboard, categorias, subcategorias, camadas e WMS.
-|
 */
 
 Route::middleware([
@@ -117,93 +135,162 @@ Route::middleware([
 ])
     ->prefix('admin')
     ->group(function () {
-
         /*
         |--------------------------------------------------------------------------
         | Dashboard
         |--------------------------------------------------------------------------
         */
 
-        Route::get('/dashboard/stats', [DashboardController::class, 'stats']);
+        Route::get('/dashboard/stats', [
+            DashboardController::class,
+            'stats',
+        ]);
 
         /*
         |--------------------------------------------------------------------------
-        | Gestão de Categorias
+        | Categorias
         |--------------------------------------------------------------------------
         */
 
         Route::prefix('categories')->group(function () {
-            Route::get('/', [CategoryController::class, 'index']);
-            Route::post('/', [CategoryController::class, 'store']);
-            Route::get('/{id}', [CategoryController::class, 'show']);
-            Route::put('/{id}', [CategoryController::class, 'update']);
-            Route::delete('/{id}', [CategoryController::class, 'destroy']);
+            Route::get('/', [
+                CategoryController::class,
+                'index',
+            ]);
+
+            Route::post('/', [
+                CategoryController::class,
+                'store',
+            ]);
+
+            Route::get('/{id}', [
+                CategoryController::class,
+                'show',
+            ]);
+
+            Route::put('/{id}', [
+                CategoryController::class,
+                'update',
+            ]);
+
+            Route::delete('/{id}', [
+                CategoryController::class,
+                'destroy',
+            ]);
         });
 
         /*
         |--------------------------------------------------------------------------
-        | Gestão de Subcategorias
+        | Subcategorias
         |--------------------------------------------------------------------------
         */
 
         Route::prefix('subcategories')->group(function () {
-            Route::get('/', [SubcategoryController::class, 'index']);
-            Route::post('/', [SubcategoryController::class, 'store']);
-            Route::get('/{subcategory}', [SubcategoryController::class, 'show']);
-            Route::put('/{subcategory}', [SubcategoryController::class, 'update']);
-            Route::delete('/{subcategory}', [SubcategoryController::class, 'destroy']);
+            Route::get('/', [
+                SubcategoryController::class,
+                'index',
+            ]);
+
+            Route::post('/', [
+                SubcategoryController::class,
+                'store',
+            ]);
+
+            Route::get('/{subcategory}', [
+                SubcategoryController::class,
+                'show',
+            ]);
+
+            Route::put('/{subcategory}', [
+                SubcategoryController::class,
+                'update',
+            ]);
+
+            Route::delete('/{subcategory}', [
+                SubcategoryController::class,
+                'destroy',
+            ]);
         });
 
         /*
         |--------------------------------------------------------------------------
-        | Gestão de Camadas
+        | Camadas
         |--------------------------------------------------------------------------
         */
 
         Route::prefix('layers')->group(function () {
-            Route::get('/', [LayerController::class, 'index']);
-            Route::post('/', [LayerController::class, 'store']);
-            Route::get('/{id}', [LayerController::class, 'show']);
-            Route::put('/{id}', [LayerController::class, 'update']);
-            Route::delete('/{id}', [LayerController::class, 'destroy']);
+            Route::get('/', [
+                LayerController::class,
+                'index',
+            ]);
+
+            Route::post('/', [
+                LayerController::class,
+                'store',
+            ]);
+
+            Route::get('/{id}', [
+                LayerController::class,
+                'show',
+            ]);
+
+            Route::put('/{id}', [
+                LayerController::class,
+                'update',
+            ]);
+
+            Route::delete('/{id}', [
+                LayerController::class,
+                'destroy',
+            ]);
         });
 
         /*
         |--------------------------------------------------------------------------
-        | Gestão de Links WMS
+        | Links WMS
         |--------------------------------------------------------------------------
         */
 
         Route::prefix('wms')->group(function () {
-            Route::get('/', [WmsController::class, 'index']);
-            Route::post('/', [WmsController::class, 'store']);
+            Route::get('/', [
+                WmsController::class,
+                'index',
+            ]);
+
+            Route::post('/', [
+                WmsController::class,
+                'store',
+            ]);
 
             /*
-             | Esta rota precisa ficar antes do show por organização.
-             | Ela lista as layers disponíveis em um link WMS específico.
+             * Deve aparecer antes da rota /{id}.
              */
-            Route::get('/{id}/layers', [WmsController::class, 'getWmsLayersByLink']);
+            Route::get('/{id}/layers', [
+                WmsController::class,
+                'getWmsLayersByLink',
+            ]);
 
-            Route::get('/{id}', [WmsController::class, 'show']);
-            Route::put('/{id}', [WmsController::class, 'update']);
-            Route::delete('/{id}', [WmsController::class, 'destroy']);
+            Route::get('/{id}', [
+                WmsController::class,
+                'show',
+            ]);
+
+            Route::put('/{id}', [
+                WmsController::class,
+                'update',
+            ]);
+
+            Route::delete('/{id}', [
+                WmsController::class,
+                'destroy',
+            ]);
         });
     });
 
 /*
 |--------------------------------------------------------------------------
-| 5. Rotas Administrativas - Somente Administrador
+| 5. Rotas administrativas - somente Administrador
 |--------------------------------------------------------------------------
-|
-| Rotas sensíveis do sistema.
-|
-| Apenas Administrador pode:
-| - listar usuários
-| - criar usuários administrativos
-| - aprovar usuários
-| - alterar perfis
-| - excluir usuários
-|
 */
 
 Route::middleware([
@@ -212,18 +299,48 @@ Route::middleware([
 ])
     ->prefix('admin')
     ->group(function () {
-
-        /*
-        |--------------------------------------------------------------------------
-        | Gestão de Usuários
-        |--------------------------------------------------------------------------
-        */
-
         Route::prefix('users')->group(function () {
-            Route::get('/', [UserController::class, 'index']);
-            Route::post('/', [UserController::class, 'store']);
-            Route::get('/{id}', [UserController::class, 'show']);
-            Route::put('/{id}', [UserController::class, 'update']);
-            Route::delete('/{id}', [UserController::class, 'destroy']);
+            /*
+            * As rotas específicas precisam ficar antes de /{id}.
+            */
+            Route::get('/pending', [
+                UserController::class,
+                'pending',
+            ]);
+
+            Route::patch('/{id}/approve', [
+                UserController::class,
+                'approve',
+            ]);
+
+            Route::delete('/{id}/reject', [
+                UserController::class,
+                'reject',
+            ]);
+
+            Route::get('/', [
+                UserController::class,
+                'index',
+            ]);
+
+            Route::post('/', [
+                UserController::class,
+                'store',
+            ]);
+
+            Route::get('/{id}', [
+                UserController::class,
+                'show',
+            ]);
+
+            Route::put('/{id}', [
+                UserController::class,
+                'update',
+            ]);
+
+            Route::delete('/{id}', [
+                UserController::class,
+                'destroy',
+            ]);
         });
     });
