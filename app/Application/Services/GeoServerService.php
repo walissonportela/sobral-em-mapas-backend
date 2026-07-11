@@ -6,7 +6,7 @@ use App\Infrastructure\Adapters\GeoServerClient;
 
 class GeoServerService
 {
-    protected $geoServerClient;
+    protected GeoServerClient $geoServerClient;
 
     public function __construct(GeoServerClient $geoServerClient)
     {
@@ -18,8 +18,11 @@ class GeoServerService
         return $this->geoServerClient->getWms($params);
     }
 
-    public function getLegendGraphic(string $layer)
+    public function getLegendGraphic(string $layer, $wmsLinkId = null)
     {
-        return $this->geoServerClient->getLegendGraphic($layer);
+        return $this->geoServerClient->getLegendGraphic(
+            $layer,
+            $wmsLinkId
+        );
     }
 }

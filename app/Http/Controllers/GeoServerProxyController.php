@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 use App\Application\Services\GeoServerService;
+use Illuminate\Http\Request;
 
 class GeoServerProxyController extends Controller
 {
-    protected $geoServerService;
+    protected GeoServerService $geoServerService;
 
     public function __construct(GeoServerService $geoServerService)
     {
@@ -16,40 +16,57 @@ class GeoServerProxyController extends Controller
 
     public function proxyWms(Request $request)
     {
-        // Pega todos os parâmetros da requisição
         $params = $request->all();
 
-        // Faz a requisição ao GeoServer passando os parâmetros
         $response = $this->geoServerService->getWmsLayer($params);
 
-        // Verifica se a requisição foi bem-sucedida
-        if ($response->successful()) {
-            // Verifica se o corpo da resposta não está vazio ou corrompido
-            if (!empty($response->body())) {
-                return response($response->body(), 200)
-                    ->header('Content-Type', 'image/png');  // Retorna a imagem PNG
-            } else {
-                // Retorna uma mensagem de erro caso o corpo esteja vazio (indica problema na camada)
-                return response()->json(['message' => 'Problema ao carregar a camada. Verifique no GeoServer.'], 500);
-            }
-        } else {
-            // Retorna uma mensagem de erro caso a requisição falhe
-            return response()->json(['message' => 'Erro ao carregar a camada WMS do GeoServer.'], 500);
+        if (!$response->successful()) {
+            return response()->json([
+                'message' => 'Erro ao carregar a camada WMS do GeoServer.',
+                'status' => $response->status(),
+            ], 500);
         }
+
+        if (empty($response->body())) {
+            return response()->json([
+                'message' => 'Problema ao carregar a camada. Verifique no GeoServer.',
+            ], 500);
+        }
+
+        $contentType = $response->header('Content-Type') ?: 'image/png';
+
+        return response($response->body(), 200)
+            ->header('Content-Type', $contentType)
+            ->header('Cache-Control', 'public, max-age=300');
     }
 
-
-    public function  getLegendGraphic(Request $request)
+    public function getLegendGraphic(Request $request)
     {
         $layer = $request->input('layer');
+        $wmsLinkId = $request->input('wms_link_id');
 
-        $response = $this->geoServerService->getLegendGraphic($layer);
-        if ($response->successful()) {
-            return response($response->body())
-                ->header('Content-Type', 'image/png')
-                ->header('Cache-Control', 'public, max-age=3600'); // Cache por 1 hora;
+        if (!$layer) {
+            return response()->json([
+                'message' => 'Informe a layer da legenda.',
+            ], 422);
         }
 
-        return response()->json(['error' => 'Failed to retrieve legend graphic'], 500);
+        $response = $this->geoServerService->getLegendGraphic(
+            $layer,
+            $wmsLinkId
+        );
+
+        if (!$response->successful()) {
+            return response()->json([
+                'error' => 'Failed to retrieve legend graphic',
+                'status' => $response->status(),
+            ], 500);
+        }
+
+        $contentType = $response->header('Content-Type') ?: 'image/png';
+
+        return response($response->body(), 200)
+            ->header('Content-Type', $contentType)
+            ->header('Cache-Control', 'public, max-age=3600');
     }
 }
