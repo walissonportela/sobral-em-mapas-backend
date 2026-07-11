@@ -149,11 +149,13 @@ class WmsController extends Controller
         );
 
         try {
-            $response = Http::connectTimeout(15)
-            ->timeout(90)
-            ->retry(2, 1500)
-            ->accept('*/*')
-            ->get($capabilitiesUrl);
+            $response = Http::withOptions([
+                    'connect_timeout' => 15,
+                    'timeout' => 90,
+                ])
+                ->retry(2, 1500)
+                ->accept('*/*')
+                ->get($capabilitiesUrl);
 
             if (!$response->successful()) {
                 return response()->json([
