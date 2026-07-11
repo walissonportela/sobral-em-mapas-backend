@@ -19,7 +19,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-RUN rm -f /etc/apache2/mods-enabled/mpm_event.* \
+RUN a2dismod -f mpm_event mpm_worker || true \
+    && rm -f /etc/apache2/mods-enabled/mpm_event.* \
     && rm -f /etc/apache2/mods-enabled/mpm_worker.* \
     && a2enmod mpm_prefork rewrite
 
@@ -42,6 +43,8 @@ RUN composer dump-autoload --optimize \
 
 EXPOSE 80
 
-CMD sed -i "s/Listen 80/Listen ${PORT:-80}/" /etc/apache2/ports.conf \
-    && sed -i "s/<VirtualHost \*:80>/<VirtualHost *:${PORT:-80}>/" /etc/apache2/sites-available/000-default.conf \
+CMD rm -f /etc/apache2/mods-enabled/mpm_event.* /etc/apache2/mods-enabled/mpm_worker.* \
+    && a2enmod mpm_prefork rewrite >/dev/null \
+    && sed -i "s/Listen 80/Listen ${PORT:-80}/" /etc/apache2/ports.conf \
+    && sed -i "s#<VirtualHost \*:80>#<VirtualHost *:${PORT:-80}>#" /etc/apache2/sites-available/000-default.conf \
     && apache2-foreground
