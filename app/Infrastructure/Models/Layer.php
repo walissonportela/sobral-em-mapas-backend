@@ -27,6 +27,8 @@ class Layer extends Model
         'wms_link_id',
         'isPublic',
         'is_active',
+        'source_format',
+        'geojson_path',
     ];
 
     protected $casts = [

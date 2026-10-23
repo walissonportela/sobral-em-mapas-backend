@@ -17,6 +17,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\GeoServerProxyController;
 use App\Http\Controllers\ChatbotController;
 use App\Http\Controllers\EstatisticasController;
+use App\Http\Controllers\GeojsonFileController;
 
 /*
 |--------------------------------------------------------------------------
@@ -91,6 +92,12 @@ Route::middleware('auth:sanctum')->group(function () {
 Route::get('/map-data', [HomeController::class, 'index']);
 Route::get('/tiles', [HomeController::class, 'tile']);
 Route::get('/coord', [HomeController::class, 'coord']);
+
+// GeoJSON armazenados no Laravel: apenas camadas publicadas no mapa.
+Route::get('/geodata/{filename}', [
+    GeojsonFileController::class,
+    'showPublic',
+])->where('filename', '[A-Za-z0-9_-]+\.geojson');
 
 /*
 |--------------------------------------------------------------------------
@@ -220,6 +227,30 @@ Route::middleware([
                 SubcategoryController::class,
                 'destroy',
             ]);
+        });
+
+        /*
+        |--------------------------------------------------------------------------
+        | Arquivos GeoJSON
+        |--------------------------------------------------------------------------
+        */
+
+        Route::prefix('geojson-files')->group(function () {
+            Route::get('/', [
+                GeojsonFileController::class,
+                'index',
+            ]);
+
+            Route::post('/', [
+                GeojsonFileController::class,
+                'store',
+            ]);
+
+            // Pré-visualização autenticada de arquivos ainda não publicados.
+            Route::get('/{filename}/content', [
+                GeojsonFileController::class,
+                'showAdmin',
+            ])->where('filename', '[A-Za-z0-9_-]+\.geojson');
         });
 
         /*

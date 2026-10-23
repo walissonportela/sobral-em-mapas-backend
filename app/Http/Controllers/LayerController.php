@@ -7,6 +7,8 @@ use App\Infrastructure\Models\Subcategory;
 use App\Infrastructure\Models\WmsLink;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Storage;
 
 class LayerController extends Controller
 {
@@ -26,8 +28,7 @@ class LayerController extends Controller
             ->orderBy('name')
             ->get();
 
-        $wmsLinks = WmsLink::orderBy('name')
-            ->get();
+        $wmsLinks = WmsLink::orderBy('name')->get();
 
         return response()->json([
             'success' => true,
@@ -40,20 +41,24 @@ class LayerController extends Controller
     public function store(Request $request)
     {
         $validated = $this->validateLayer($request);
+        $sourceFormat = $validated['source_format'];
+        $isGeoJson = $sourceFormat === 'GEOJSON';
 
         $layer = Layer::create([
             'name' => trim($validated['name']),
             'layer_name' => trim($validated['layer_name']),
             'crs' => $validated['crs'] ?? 'EPSG:4326',
             'legend_url' => $validated['legend_url'] ?? null,
-            'type' => $validated['type'] ?? 'WMS',
+            'type' => $isGeoJson ? null : ($validated['type'] ?? 'WMS'),
             'description' => $validated['description'] ?? null,
             'order' => $validated['order'] ?? 0,
             'subcategory' => $validated['subcategory'] ?? null,
             'image_path' => $validated['image_path'] ?? null,
             'max_scale' => $validated['max_scale'] ?? null,
             'symbol' => $validated['symbol'] ?? null,
-            'wms_link_id' => $validated['wms_link_id'] ?? null,
+            'wms_link_id' => $isGeoJson ? null : ($validated['wms_link_id'] ?? null),
+            'source_format' => $sourceFormat,
+            'geojson_path' => $isGeoJson ? $validated['geojson_path'] : null,
             'isPublic' => $request->boolean('isPublic', true),
             'is_active' => true,
         ]);
@@ -88,21 +93,31 @@ class LayerController extends Controller
     {
         $layer = Layer::findOrFail($id);
 
-        $validated = $this->validateLayer($request, $layer->id);
+        // Se o formato não vier da interface, preserva o formato atual.
+        $validated = $this->validateLayer(
+            $request,
+            $layer->id,
+            $layer->source_format ?? 'WMS'
+        );
+
+        $sourceFormat = $validated['source_format'];
+        $isGeoJson = $sourceFormat === 'GEOJSON';
 
         $layer->update([
             'name' => trim($validated['name']),
             'layer_name' => trim($validated['layer_name']),
             'crs' => $validated['crs'] ?? 'EPSG:4326',
             'legend_url' => $validated['legend_url'] ?? null,
-            'type' => $validated['type'] ?? 'WMS',
+            'type' => $isGeoJson ? null : ($validated['type'] ?? 'WMS'),
             'description' => $validated['description'] ?? null,
             'order' => $validated['order'] ?? 0,
             'subcategory' => $validated['subcategory'] ?? null,
             'image_path' => $validated['image_path'] ?? null,
             'max_scale' => $validated['max_scale'] ?? null,
             'symbol' => $validated['symbol'] ?? null,
-            'wms_link_id' => $validated['wms_link_id'] ?? null,
+            'wms_link_id' => $isGeoJson ? null : ($validated['wms_link_id'] ?? null),
+            'source_format' => $sourceFormat,
+            'geojson_path' => $isGeoJson ? $validated['geojson_path'] : null,
             'isPublic' => $request->boolean('isPublic', true),
         ]);
 
@@ -120,12 +135,9 @@ class LayerController extends Controller
 
     public function updateStatus(Request $request, $id)
     {
-        $validated = $request->validate(
+        $request->validate(
             [
-                'is_active' => [
-                    'required',
-                    'boolean',
-                ],
+                'is_active' => ['required', 'boolean'],
             ],
             [
                 'is_active.required' => 'Informe o status da camada.',
@@ -156,7 +168,6 @@ class LayerController extends Controller
     public function destroy($id)
     {
         $layer = Layer::findOrFail($id);
-
         $layer->delete();
 
         return response()->json([
@@ -165,9 +176,17 @@ class LayerController extends Controller
         ]);
     }
 
-    private function validateLayer(Request $request, $ignoreId = null): array
-    {
-        return $request->validate(
+    private function validateLayer(
+        Request $request,
+        $ignoreId = null,
+        $defaultSourceFormat = 'WMS'
+    ): array {
+        // Permite que formulários antigos continuem enviando apenas campos WMS.
+        $request->merge([
+            'source_format' => $request->input('source_format') ?: $defaultSourceFormat,
+        ]);
+
+        $validated = $request->validate(
             [
                 'name' => [
                     'required',
@@ -181,6 +200,17 @@ class LayerController extends Controller
                     'max:255',
                     Rule::unique('layers', 'layer_name')->ignore($ignoreId),
                 ],
+                'source_format' => [
+                    'required',
+                    Rule::in(['WMS', 'GEOJSON']),
+                ],
+                'geojson_path' => [
+                    'required_if:source_format,GEOJSON',
+                    'nullable',
+                    'string',
+                    'max:500',
+                    'regex:~^/(?:api/)?geodata/[A-Za-z0-9_-]+\.geojson$~',
+                ],
                 'crs' => [
                     'nullable',
                     'string',
@@ -193,8 +223,7 @@ class LayerController extends Controller
                 ],
                 'type' => [
                     'nullable',
-                    'string',
-                    'max:255',
+                    Rule::in(['WMS', 'WFS']),
                 ],
                 'description' => [
                     'nullable',
@@ -236,14 +265,34 @@ class LayerController extends Controller
             [
                 'name.required' => 'Informe o nome da camada.',
                 'name.unique' => 'Já existe uma camada com esse nome.',
-
                 'layer_name.required' => 'Informe o nome técnico da camada.',
                 'layer_name.unique' => 'Já existe uma camada com esse nome técnico.',
-
+                'source_format.in' => 'O formato da camada deve ser WMS ou GEOJSON.',
+                'geojson_path.required_if' => 'Informe o caminho do arquivo GeoJSON.',
+                'geojson_path.regex' => 'Use /geodata/arquivo.geojson ou /api/geodata/arquivo.geojson.',
                 'subcategory.exists' => 'A subcategoria selecionada é inválida.',
                 'wms_link_id.exists' => 'O link WMS selecionado é inválido.',
+                'type.in' => 'O tipo de serviço deve ser WMS ou WFS.',
                 'isPublic.boolean' => 'O status público da camada é inválido.',
             ]
         );
+
+        // Para uploads do Laravel, garante que o arquivo realmente existe
+        // antes de registrar a camada no banco de dados.
+        $geojsonPath = $validated['geojson_path'] ?? null;
+        if (
+            ($validated['source_format'] ?? '') === 'GEOJSON' &&
+            is_string($geojsonPath) &&
+            str_starts_with($geojsonPath, '/api/geodata/')
+        ) {
+            $filename = basename($geojsonPath);
+            if (!Storage::disk('local')->exists('geodata/' . $filename)) {
+                throw ValidationException::withMessages([
+                    'geojson_path' => 'O arquivo GeoJSON não foi encontrado no armazenamento do Laravel.',
+                ]);
+            }
+        }
+
+        return $validated;
     }
 }
