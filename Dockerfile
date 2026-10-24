@@ -37,14 +37,25 @@ COPY . .
 COPY ./docker/apache/default.conf /etc/apache2/sites-available/000-default.conf
 
 RUN composer dump-autoload --optimize \
-    && mkdir -p storage bootstrap/cache \
+    && mkdir -p storage/app/geodata storage bootstrap/cache \
     && chown -R www-data:www-data /var/www/html \
     && chmod -R 775 storage bootstrap/cache
 
 EXPOSE 80
 
+# No Railway, o Volume e montado somente na inicializacao do container.
+# Como ele pertence inicialmente a root, concedemos acesso ao Apache (www-data).
+# Fora do Railway, mantemos a inicializacao local como antes.
 CMD rm -f /etc/apache2/mods-enabled/mpm_event.* /etc/apache2/mods-enabled/mpm_worker.* \
     && a2enmod mpm_prefork rewrite >/dev/null \
+    && if [ -n "${RAILWAY_VOLUME_MOUNT_PATH:-}" ]; then \
+         if [ "$RAILWAY_VOLUME_MOUNT_PATH" != "/var/www/html/storage/app/geodata" ]; then \
+           echo "ERRO: Configure o Railway Volume em /var/www/html/storage/app/geodata" >&2; \
+           exit 1; \
+         fi; \
+         chown www-data:www-data /var/www/html/storage/app/geodata \
+         && chmod 775 /var/www/html/storage/app/geodata; \
+       fi \
     && sed -i "s/Listen 80/Listen ${PORT:-80}/" /etc/apache2/ports.conf \
     && sed -i "s#<VirtualHost \*:80>#<VirtualHost *:${PORT:-80}>#" /etc/apache2/sites-available/000-default.conf \
     && apache2-foreground
