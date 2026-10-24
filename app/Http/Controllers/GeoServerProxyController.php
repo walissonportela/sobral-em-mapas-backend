@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Application\Services\GeoServerService;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Log;
 
 class GeoServerProxyController extends Controller
 {
@@ -17,30 +19,40 @@ class GeoServerProxyController extends Controller
 
     public function proxyWms(Request $request)
     {
-        $params = $request->all();
+        try {
+            $response = $this->geoServerService->getWmsLayer($request->all());
+        } catch (ConnectionException $exception) {
+            Log::warning('WMS indisponível ao solicitar mapa.', [
+                'error' => $exception->getMessage(),
+            ]);
 
-        $response = $this->geoServerService->getWmsLayer($params);
+            return $this->corsJsonResponse([
+                'message' => 'Serviço de mapas WMS temporariamente indisponível.',
+            ], 503);
+        }
 
         if (!$response->successful()) {
             return $this->corsJsonResponse([
-                'message' => 'Erro ao carregar a camada WMS do GeoServer.',
-                'status' => $response->status(),
-            ], 500);
+                'message' => 'O servidor WMS não conseguiu responder à solicitação.',
+                'upstream_status' => $response->status(),
+            ], 502);
         }
 
-        if (empty($response->body())) {
+        if ($response->body() === '') {
             return $this->corsJsonResponse([
-                'message' => 'Problema ao carregar a camada. Verifique no GeoServer.',
-            ], 500);
+                'message' => 'O servidor WMS retornou uma resposta vazia.',
+            ], 502);
         }
 
-        $contentType = $response->header('Content-Type') ?: 'image/png';
+        $contentType = $response->header('Content-Type') ?: 'application/octet-stream';
+        if (stripos($contentType, 'image/') !== 0) {
+            // Servidores OGC também podem devolver exceções XML com HTTP 200.
+            return $this->corsJsonResponse([
+                'message' => 'O servidor WMS retornou uma resposta que não é uma imagem.',
+            ], 502);
+        }
 
-        return $this->corsImageResponse(
-            $response->body(),
-            $contentType,
-            300
-        );
+        return $this->corsImageResponse($response->body(), $contentType, 300);
     }
 
     public function getLegendGraphic(Request $request)
@@ -54,31 +66,39 @@ class GeoServerProxyController extends Controller
             ], 422);
         }
 
-        $response = $this->geoServerService->getLegendGraphic(
-            $layer,
-            $wmsLinkId
-        );
+        try {
+            $response = $this->geoServerService->getLegendGraphic($layer, $wmsLinkId);
+        } catch (ConnectionException $exception) {
+            Log::warning('WMS indisponível ao solicitar legenda.', [
+                'error' => $exception->getMessage(),
+            ]);
+
+            return $this->corsJsonResponse([
+                'message' => 'Legenda WMS temporariamente indisponível.',
+            ], 503);
+        }
 
         if (!$response->successful()) {
             return $this->corsJsonResponse([
-                'error' => 'Failed to retrieve legend graphic',
-                'status' => $response->status(),
-            ], 500);
+                'message' => 'Não foi possível recuperar a legenda do WMS.',
+                'upstream_status' => $response->status(),
+            ], 502);
         }
 
-        if (empty($response->body())) {
+        if ($response->body() === '') {
             return $this->corsJsonResponse([
-                'message' => 'Legenda vazia retornada pelo GeoServer.',
-            ], 500);
+                'message' => 'O servidor WMS retornou uma legenda vazia.',
+            ], 502);
         }
 
-        $contentType = $response->header('Content-Type') ?: 'image/png';
+        $contentType = $response->header('Content-Type') ?: 'application/octet-stream';
+        if (stripos($contentType, 'image/') !== 0) {
+            return $this->corsJsonResponse([
+                'message' => 'O servidor WMS retornou uma legenda inválida.',
+            ], 502);
+        }
 
-        return $this->corsImageResponse(
-            $response->body(),
-            $contentType,
-            3600
-        );
+        return $this->corsImageResponse($response->body(), $contentType, 3600);
     }
 
     private function corsImageResponse(
@@ -96,10 +116,8 @@ class GeoServerProxyController extends Controller
             ->header('Cross-Origin-Resource-Policy', 'cross-origin');
     }
 
-    private function corsJsonResponse(
-        array $data,
-        int $status = 200
-    ) {
+    private function corsJsonResponse(array $data, int $status = 200)
+    {
         return response()->json($data, $status)
             ->header('Access-Control-Allow-Origin', '*')
             ->header('Access-Control-Allow-Methods', 'GET, OPTIONS')
