@@ -19,9 +19,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-RUN a2dismod -f mpm_event mpm_worker || true \
-    && rm -f /etc/apache2/mods-enabled/mpm_event.* \
-    && rm -f /etc/apache2/mods-enabled/mpm_worker.* \
+# A imagem PHP/Apache precisa do MPM prefork para o mod_php.
+# Remove outros MPMs e deixa apenas prefork habilitado no build.
+RUN rm -f /etc/apache2/mods-enabled/mpm_*.load /etc/apache2/mods-enabled/mpm_*.conf \
     && a2enmod mpm_prefork rewrite
 
 COPY composer.json composer.lock ./
@@ -41,14 +41,15 @@ RUN composer dump-autoload --optimize \
     && chown -R www-data:www-data /var/www/html \
     && chmod -R 775 storage bootstrap/cache
 
-# Ambiente local: Apache na porta 80 (docker-compose: 8080:80).
-# Railway: Apache na porta 8080 (Public Networking: target port 8080).
+# Em desenvolvimento: porta 80 (docker-compose publica 8080:80).
+# No Railway: porta interna 8080, conforme Public Networking.
 EXPOSE 80 8080
 
-# Recria a configuracao da porta a cada inicializacao, sem substituir
-# a substring "Listen 80" dentro de "Listen 8080" repetidas vezes.
-# Railway fornece RAILWAY_SERVICE_ID automaticamente.
+# IMPORTANTE: Railway pode modificar os modulos carregados no startup.
+# Limpar e reativar SOMENTE mpm_prefork evita AH00534 (mais de um MPM).
 CMD set -eu; \
+    rm -f /etc/apache2/mods-enabled/mpm_*.load /etc/apache2/mods-enabled/mpm_*.conf; \
+    a2enmod mpm_prefork rewrite >/dev/null; \
     if [ -n "${RAILWAY_SERVICE_ID:-}" ]; then \
         APACHE_PORT=8080; \
     else \
@@ -64,5 +65,6 @@ CMD set -eu; \
         chown www-data:www-data /var/www/html/storage/app/geodata; \
         chmod 775 /var/www/html/storage/app/geodata; \
     fi; \
-    echo "Iniciando Apache na porta ${APACHE_PORT}"; \
+    echo "Iniciando Apache na porta ${APACHE_PORT} com MPM prefork"; \
+    apache2ctl configtest; \
     exec apache2-foreground
