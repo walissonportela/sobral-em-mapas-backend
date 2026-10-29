@@ -11,38 +11,35 @@ use Illuminate\Validation\Rule;
 
 class UserController extends Controller
 {
-    /**
-     * Lista todos os usuários e perfis.
-     */
-    public function index()
+    public function index(Request $request)
     {
-        $users = User::with('profile')
-            ->orderBy('name')
-            ->get();
-
-        $profiles = Profile::query()
-            ->orderBy('id')
-            ->get([
-                'id',
-                'nome',
-            ]);
+        if (!$this->canViewUsers($request)) {
+            return $this->forbidden('Você não tem permissão para visualizar usuários.');
+        }
 
         return response()->json([
             'success' => true,
-            'users' => $users,
-            'profiles' => $profiles,
+            'users' => User::with('profile')->orderBy('name')->get(),
+            'profiles' => Profile::orderBy('id')->get(['id', 'nome']),
         ]);
     }
 
-    /**
-     * Lista usuários que ainda aguardam aprovação.
-     */
-    public function pending()
+    public function pending(Request $request)
     {
-        $requests = User::with('profile')
-            ->where('approved', false)
-            ->latest()
-            ->get();
+        if (!$this->canViewUsers($request)) {
+            return $this->forbidden('Você não tem permissão para visualizar solicitações.');
+        }
+
+        $query = User::with('profile')->where('approved', false);
+
+        // Administradores só analisam solicitações de Visitantes.
+        if (!$this->isSuperActor($request)) {
+            $query->whereHas('profile', function ($profileQuery) {
+                $profileQuery->where('nome', 'Visitante');
+            });
+        }
+
+        $requests = $query->latest()->get();
 
         return response()->json([
             'success' => true,
@@ -51,88 +48,46 @@ class UserController extends Controller
         ]);
     }
 
-    /**
-     * Exibe um usuário específico.
-     */
-    public function show(string $id)
+    public function show(Request $request, string $id)
     {
-        $user = User::with('profile')
-            ->findOrFail($id);
+        if (!$this->canViewUsers($request)) {
+            return $this->forbidden('Você não tem permissão para visualizar usuários.');
+        }
 
         return response()->json([
             'success' => true,
-            'user' => $user,
+            'user' => User::with('profile')->findOrFail($id),
         ]);
     }
 
-    /**
-     * Cria um usuário pelo painel administrativo.
-     */
     public function store(Request $request)
     {
-        $validated = $request->validate(
-            [
-                'name' => [
-                    'required',
-                    'string',
-                    'max:255',
-                ],
-                'email' => [
-                    'required',
-                    'email',
-                    'max:255',
-                    'unique:users,email',
-                ],
-                'login' => [
-                    'required',
-                    'string',
-                    'max:100',
-                    'unique:users,login',
-                ],
-                'password' => [
-                    'required',
-                    'string',
-                    'min:6',
-                ],
-                'profile_id' => [
-                    'required',
-                    'integer',
-                    'exists:profiles,id',
-                ],
-                'approved' => [
-                    'required',
-                    'boolean',
-                ],
-            ],
-            [
-                'name.required' => 'Informe o nome do usuário.',
+        if (!$this->isSuperActor($request)) {
+            return $this->forbidden('Somente o superadministrador pode criar usuários.');
+        }
 
-                'email.required' => 'Informe o e-mail.',
-                'email.email' => 'Informe um e-mail válido.',
-                'email.unique' => 'Este e-mail já está cadastrado.',
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
+            'login' => ['required', 'string', 'max:100', 'unique:users,login'],
+            'password' => ['required', 'string', 'min:6'],
+            'profile_id' => ['required', 'integer', 'exists:profiles,id'],
+            'approved' => ['required', 'boolean'],
+        ]);
 
-                'login.required' => 'Informe o login.',
-                'login.unique' => 'Este login já está sendo utilizado.',
-
-                'password.required' => 'Informe uma senha.',
-                'password.min' => 'A senha precisa ter pelo menos 6 caracteres.',
-
-                'profile_id.required' => 'Selecione um perfil.',
-                'profile_id.exists' => 'O perfil selecionado é inválido.',
-
-                'approved.required' => 'Informe o status da conta.',
-            ]
-        );
+        $profile = Profile::findOrFail($validated['profile_id']);
+        if ($this->isSuperProfile($profile)) {
+            return $this->forbidden('Não é permitido criar outro superadministrador.');
+        }
 
         $user = User::create([
             'name' => trim($validated['name']),
             'email' => Str::lower(trim($validated['email'])),
             'login' => Str::lower(trim($validated['login'])),
             'password' => Hash::make($validated['password']),
-            'profile_id' => $validated['profile_id'],
+            'profile_id' => $profile->id,
             'approved' => $request->boolean('approved'),
         ]);
-
         $user->load('profile');
 
         return response()->json([
@@ -142,109 +97,63 @@ class UserController extends Controller
         ], 201);
     }
 
-    /**
-     * Atualiza um usuário.
-     */
     public function update(Request $request, string $id)
     {
-        $user = User::findOrFail($id);
-
-        $validated = $request->validate(
-            [
-                'name' => [
-                    'required',
-                    'string',
-                    'max:255',
-                ],
-                'email' => [
-                    'required',
-                    'email',
-                    'max:255',
-                    Rule::unique('users', 'email')->ignore($user->id),
-                ],
-                'login' => [
-                    'required',
-                    'string',
-                    'max:100',
-                    Rule::unique('users', 'login')->ignore($user->id),
-                ],
-                'password' => [
-                    'nullable',
-                    'string',
-                    'min:6',
-                ],
-                'profile_id' => [
-                    'required',
-                    'integer',
-                    'exists:profiles,id',
-                ],
-                'approved' => [
-                    'required',
-                    'boolean',
-                ],
-            ],
-            [
-                'name.required' => 'Informe o nome do usuário.',
-
-                'email.required' => 'Informe o e-mail.',
-                'email.email' => 'Informe um e-mail válido.',
-                'email.unique' => 'Este e-mail já está cadastrado.',
-
-                'login.required' => 'Informe o login.',
-                'login.unique' => 'Este login já está sendo utilizado.',
-
-                'password.min' => 'A senha precisa ter pelo menos 6 caracteres.',
-
-                'profile_id.required' => 'Selecione um perfil.',
-                'profile_id.exists' => 'O perfil selecionado é inválido.',
-
-                'approved.required' => 'Informe o status da conta.',
-            ]
-        );
-
-        $authenticatedUser = $request->user();
-        $isEditingOwnAccount =
-            (int) $authenticatedUser->id === (int) $user->id;
-
-        /*
-         * Impede o Administrador de remover o próprio acesso
-         * ao painel por acidente.
-         */
-        if (
-            $isEditingOwnAccount &&
-            (int) $validated['profile_id'] !== (int) $user->profile_id
-        ) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Você não pode alterar o próprio perfil.',
-            ], 403);
+        if (!$this->isSuperActor($request)) {
+            return $this->forbidden('Somente o superadministrador pode editar usuários.');
         }
 
-        if (
-            $isEditingOwnAccount &&
-            !$request->boolean('approved')
-        ) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Você não pode deixar sua própria conta pendente.',
-            ], 403);
+        $user = User::with('profile')->findOrFail($id);
+        $actor = $request->user();
+        $editingOwnAccount = (int) $actor->id === (int) $user->id;
+        $targetIsSuper = $this->isSuperProfile($user->profile);
+
+        if ($targetIsSuper && !$editingOwnAccount) {
+            return $this->forbidden('A conta do superadministrador é protegida.');
+        }
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
+            'login' => ['required', 'string', 'max:100', Rule::unique('users', 'login')->ignore($user->id)],
+            'password' => ['nullable', 'string', 'min:6'],
+            'profile_id' => ['required', 'integer', 'exists:profiles,id'],
+            'approved' => ['required', 'boolean'],
+        ]);
+
+        $newProfile = Profile::findOrFail($validated['profile_id']);
+        $changingOwnProfile = $editingOwnAccount && (int) $newProfile->id !== (int) $user->profile_id;
+
+        if ($changingOwnProfile) {
+            return $this->forbidden('Você não pode alterar o próprio perfil.');
+        }
+
+        if ($this->isSuperProfile($newProfile) && !$targetIsSuper) {
+            return $this->forbidden('Não é permitido promover outro usuário a superadministrador.');
+        }
+
+        if ($targetIsSuper && (int) $newProfile->id !== (int) $user->profile_id) {
+            return $this->forbidden('O perfil do superadministrador não pode ser alterado.');
+        }
+
+        if ($editingOwnAccount && !$request->boolean('approved')) {
+            return $this->forbidden('Você não pode deixar sua própria conta pendente.');
+        }
+
+        if ($targetIsSuper && !$request->boolean('approved')) {
+            return $this->forbidden('O superadministrador não pode ser desativado.');
         }
 
         $updateData = [
             'name' => trim($validated['name']),
             'email' => Str::lower(trim($validated['email'])),
             'login' => Str::lower(trim($validated['login'])),
-            'profile_id' => $validated['profile_id'],
+            'profile_id' => $newProfile->id,
             'approved' => $request->boolean('approved'),
         ];
 
-        /*
-         * A senha só é modificada quando uma nova senha é informada.
-         */
         if (!empty($validated['password'])) {
-            $updateData['password'] = Hash::make(
-                $validated['password']
-            );
+            $updateData['password'] = Hash::make($validated['password']);
         }
 
         $user->update($updateData);
@@ -257,13 +166,17 @@ class UserController extends Controller
         ]);
     }
 
-    /**
-     * Aprova uma solicitação de cadastro.
-     */
-    public function approve(string $id)
+    public function approve(Request $request, string $id)
     {
-        $user = User::with('profile')
-            ->findOrFail($id);
+        $user = User::with('profile')->findOrFail($id);
+
+        if ($this->isSuperProfile($user->profile)) {
+            return $this->forbidden('A conta do superadministrador é protegida.');
+        }
+
+        if (!$this->canReviewRequest($request, $user)) {
+            return $this->forbidden('Você só pode aprovar solicitações de visitantes.');
+        }
 
         if ($user->approved) {
             return response()->json([
@@ -272,10 +185,7 @@ class UserController extends Controller
             ], 422);
         }
 
-        $user->update([
-            'approved' => true,
-        ]);
-
+        $user->update(['approved' => true]);
         $user->load('profile');
 
         return response()->json([
@@ -285,68 +195,52 @@ class UserController extends Controller
         ]);
     }
 
-    /**
-     * Recusa uma solicitação ainda pendente.
-     *
-     * Como atualmente não existe uma coluna de status
-     * "recusado", recusar remove o cadastro do sistema.
-     */
     public function reject(Request $request, string $id)
     {
-        $user = User::with('profile')
-            ->findOrFail($id);
+        $user = User::with('profile')->findOrFail($id);
+
+        if ($this->isSuperProfile($user->profile)) {
+            return $this->forbidden('A conta do superadministrador é protegida.');
+        }
+
+        if (!$this->canReviewRequest($request, $user)) {
+            return $this->forbidden('Você só pode recusar solicitações de visitantes.');
+        }
 
         if ($user->approved) {
             return response()->json([
                 'success' => false,
-                'message' => 'Não é possível recusar um usuário que já foi aprovado.',
+                'message' => 'Não é possível recusar um usuário já aprovado.',
             ], 422);
         }
 
-        if (
-            (int) $request->user()->id ===
-            (int) $user->id
-        ) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Você não pode recusar sua própria conta.',
-            ], 403);
+        if ((int) $request->user()->id === (int) $user->id) {
+            return $this->forbidden('Você não pode recusar sua própria conta.');
         }
 
-        $userName = $user->name;
-
+        $name = $user->name;
         $user->delete();
 
         return response()->json([
             'success' => true,
-            'message' => "A solicitação de {$userName} foi recusada.",
+            'message' => "A solicitação de {$name} foi recusada.",
         ]);
     }
 
-    /**
-     * Exclui um usuário pela tela geral de usuários.
-     */
     public function destroy(Request $request, string $id)
     {
-        $authenticatedUser = $request->user();
-
-        if (!$authenticatedUser) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Usuário não autenticado.',
-            ], 401);
+        if (!$this->isSuperActor($request)) {
+            return $this->forbidden('Somente o superadministrador pode excluir usuários.');
         }
 
-        $user = User::findOrFail($id);
+        $user = User::with('profile')->findOrFail($id);
 
-        if (
-            (int) $authenticatedUser->id ===
-            (int) $user->id
-        ) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Você não pode excluir sua própria conta.',
-            ], 403);
+        if ($this->isSuperProfile($user->profile)) {
+            return $this->forbidden('A conta do superadministrador não pode ser excluída.');
+        }
+
+        if ((int) $request->user()->id === (int) $user->id) {
+            return $this->forbidden('Você não pode excluir sua própria conta.');
         }
 
         $user->delete();
@@ -355,5 +249,40 @@ class UserController extends Controller
             'success' => true,
             'message' => 'Usuário excluído com sucesso.',
         ]);
+    }
+
+    private function isSuperProfile(?Profile $profile): bool
+    {
+        return $profile?->nome === 'Superadministrador';
+    }
+
+    private function isSuperActor(Request $request): bool
+    {
+        return $request->user()?->profile?->nome === 'Superadministrador';
+    }
+
+    private function canViewUsers(Request $request): bool
+    {
+        $role = $request->user()?->profile?->nome;
+
+        return in_array($role, ['Superadministrador', 'Administrador'], true);
+    }
+
+    private function canReviewRequest(Request $request, User $user): bool
+    {
+        if ($this->isSuperActor($request)) {
+            return true;
+        }
+
+        return $request->user()?->profile?->nome === 'Administrador'
+            && $user->profile?->nome === 'Visitante';
+    }
+
+    private function forbidden(string $message)
+    {
+        return response()->json([
+            'success' => false,
+            'message' => $message,
+        ], 403);
     }
 }

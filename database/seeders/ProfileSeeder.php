@@ -2,15 +2,23 @@
 
 namespace Database\Seeders;
 
+use App\Infrastructure\Models\Profile;
 use Illuminate\Database\Seeder;
-use App\Infrastructure\Models\Profile; // Certifique-se de que o caminho está correto
 
 class ProfileSeeder extends Seeder
 {
-    public function run()
+    public function run(): void
     {
-        Profile::create(['nome' => 'Administrador']);
-        Profile::create(['nome' => 'Agente']);
-        Profile::create(['nome' => 'Visitante']);
+        $perfis = [
+            'Superadministrador',
+            'Administrador',
+            'Visitante',
+        ];
+
+        foreach ($perfis as $nome) {
+            Profile::firstOrCreate([
+                'nome' => $nome,
+            ]);
+        }
     }
 }

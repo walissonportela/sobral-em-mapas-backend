@@ -13,12 +13,12 @@ class DashboardController extends Controller
     {
         $totalUsers = User::count();
 
-        $totalAdministradores = User::whereHas('profile', function ($query) {
-            $query->where('nome', 'Administrador');
+        $totalSuperadministradores = User::whereHas('profile', function ($query) {
+            $query->where('nome', 'Superadministrador');
         })->count();
 
-        $totalAgentes = User::whereHas('profile', function ($query) {
-            $query->where('nome', 'Agente');
+        $totalAdministradores = User::whereHas('profile', function ($query) {
+            $query->where('nome', 'Administrador');
         })->count();
 
         $totalVisitantes = User::whereHas('profile', function ($query) {
@@ -110,8 +110,8 @@ class DashboardController extends Controller
                     'total' => $totalUsers,
                     'approved' => $approvedUsers,
                     'pending' => $pendingUsers,
+                    'superadministradores' => $totalSuperadministradores,
                     'administradores' => $totalAdministradores,
-                    'agentes' => $totalAgentes,
                     'visitantes' => $totalVisitantes,
                 ],
 

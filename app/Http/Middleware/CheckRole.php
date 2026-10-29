@@ -14,18 +14,23 @@ class CheckRole
         if (!$user) {
             return response()->json([
                 'success' => false,
-                'message' => 'Usuário não autenticado.'
+                'message' => 'Usuário não autenticado.',
             ], 401);
+        }
+
+        if (!$user->approved) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Sua conta não está aprovada para acessar esta área.',
+            ], 403);
         }
 
         $user->loadMissing('profile');
 
-        $roleName = $user->profile?->nome;
-
-        if (!in_array($roleName, $roles)) {
+        if (!in_array($user->profile?->nome, $roles, true)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Você não possui permissão para acessar esta área.'
+                'message' => 'Você não possui permissão para acessar esta área.',
             ], 403);
         }
 

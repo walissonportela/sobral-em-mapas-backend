@@ -34,23 +34,24 @@ use App\Http\Controllers\Api\Admin\DashboardController;
 | API Routes - Sobral em Mapas
 |--------------------------------------------------------------------------
 |
-| Perfis atuais:
+| Perfis de acesso:
+|
+| Superadministrador:
+| - controle administrativo completo;
+| - gestão de usuários e solicitações;
+| - gestão de mapas, categorias, camadas e links WMS.
 |
 | Administrador:
-| - controle administrativo completo;
-| - gestão de usuários;
-| - gestão de mapas e camadas.
-|
-| Agente:
 | - dashboard;
-| - categorias;
-| - subcategorias;
-| - camadas;
-| - links WMS.
+| - categorias e subcategorias;
+| - camadas e arquivos GeoJSON;
+| - links WMS;
+| - consulta de usuários e análise de solicitações de visitantes;
+| - sem permissão para criar, editar ou excluir contas existentes.
 |
 | Visitante:
 | - acesso ao mapa;
-| - futuramente favoritos, impressões e preferências.
+| - favoritos, impressões e preferências locais.
 |
 */
 
@@ -132,13 +133,13 @@ Route::post('/contact', [
 
 /*
 |--------------------------------------------------------------------------
-| 4. Rotas administrativas - Administrador e Agente
+| 4. Rotas administrativas - Superadministrador e Administrador
 |--------------------------------------------------------------------------
 */
 
 Route::middleware([
     'auth:sanctum',
-    'role:Administrador,Agente',
+    'role:Superadministrador,Administrador',
 ])
     ->prefix('admin')
     ->group(function () {
@@ -333,58 +334,47 @@ Route::middleware([
 
 /*
 |--------------------------------------------------------------------------
-| 5. Rotas administrativas - somente Administrador
+| 5. Usuários e solicitações - Superadministrador e Administrador
 |--------------------------------------------------------------------------
+|
+| O Administrador consulta usuários e analisa apenas solicitações de
+| Visitantes. O UserController valida essa restrição por perfil.
+|
 */
 
 Route::middleware([
     'auth:sanctum',
-    'role:Administrador',
+    'role:Superadministrador,Administrador',
 ])
-    ->prefix('admin')
+    ->prefix('admin/users')
     ->group(function () {
-        Route::prefix('users')->group(function () {
-            /*
-            * As rotas específicas precisam ficar antes de /{id}.
-            */
-            Route::get('/pending', [
-                UserController::class,
-                'pending',
-            ]);
+        // Esta rota deve vir antes de /{id}.
+        Route::get('/pending', [UserController::class, 'pending']);
 
-            Route::patch('/{id}/approve', [
-                UserController::class,
-                'approve',
-            ]);
+        Route::patch('/{id}/approve', [UserController::class, 'approve']);
+        Route::delete('/{id}/reject', [UserController::class, 'reject']);
 
-            Route::delete('/{id}/reject', [
-                UserController::class,
-                'reject',
-            ]);
+        Route::get('/', [UserController::class, 'index']);
+        Route::get('/{id}', [UserController::class, 'show']);
+    });
 
-            Route::get('/', [
-                UserController::class,
-                'index',
-            ]);
+/*
+|--------------------------------------------------------------------------
+| 6. Gestão de contas - somente Superadministrador
+|--------------------------------------------------------------------------
+|
+| Criar, editar ou excluir contas é uma atribuição exclusiva do
+| Superadministrador. Sua conta permanece protegida no UserController.
+|
+*/
 
-            Route::post('/', [
-                UserController::class,
-                'store',
-            ]);
-
-            Route::get('/{id}', [
-                UserController::class,
-                'show',
-            ]);
-
-            Route::put('/{id}', [
-                UserController::class,
-                'update',
-            ]);
-
-            Route::delete('/{id}', [
-                UserController::class,
-                'destroy',
-            ]);
-        });
+Route::middleware([
+    'auth:sanctum',
+    'role:Superadministrador',
+])
+    ->prefix('admin/users')
+    ->group(function () {
+        Route::post('/', [UserController::class, 'store']);
+        Route::put('/{id}', [UserController::class, 'update']);
+        Route::delete('/{id}', [UserController::class, 'destroy']);
     });
