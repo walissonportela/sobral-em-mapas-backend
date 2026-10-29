@@ -356,6 +356,9 @@ Route::middleware([
 
         Route::get('/', [UserController::class, 'index']);
         Route::get('/{id}', [UserController::class, 'show']);
+
+        // Ambos podem criar contas; o Controller limita Administradores a Visitantes.
+        Route::post('/', [UserController::class, 'store']);
     });
 
 /*
@@ -363,8 +366,9 @@ Route::middleware([
 | 6. Gestão de contas - somente Superadministrador
 |--------------------------------------------------------------------------
 |
-| Criar, editar ou excluir contas é uma atribuição exclusiva do
-| Superadministrador. Sua conta permanece protegida no UserController.
+| Editar ou excluir contas é uma atribuição exclusiva do
+| Superadministrador. A criação de visitantes é compartilhada com o
+| Administrador, com a restrição aplicada no UserController.
 |
 */
 
@@ -374,7 +378,6 @@ Route::middleware([
 ])
     ->prefix('admin/users')
     ->group(function () {
-        Route::post('/', [UserController::class, 'store']);
         Route::put('/{id}', [UserController::class, 'update']);
         Route::delete('/{id}', [UserController::class, 'destroy']);
     });

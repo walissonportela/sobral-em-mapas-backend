@@ -62,8 +62,12 @@ class UserController extends Controller
 
     public function store(Request $request)
     {
-        if (!$this->isSuperActor($request)) {
-            return $this->forbidden('Somente o superadministrador pode criar usuários.');
+        $role = $request->user()?->profile?->nome;
+        $isSuperadmin = $role === 'Superadministrador';
+        $isAdmin = $role === 'Administrador';
+
+        if (!$isSuperadmin && !$isAdmin) {
+            return $this->forbidden('Você não tem permissão para criar usuários.');
         }
 
         $validated = $request->validate([
@@ -71,13 +75,21 @@ class UserController extends Controller
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'login' => ['required', 'string', 'max:100', 'unique:users,login'],
             'password' => ['required', 'string', 'min:6'],
-            'profile_id' => ['required', 'integer', 'exists:profiles,id'],
+            'profile_id' => [$isSuperadmin ? 'required' : 'nullable', 'integer', 'exists:profiles,id'],
             'approved' => ['required', 'boolean'],
         ]);
 
-        $profile = Profile::findOrFail($validated['profile_id']);
-        if ($this->isSuperProfile($profile)) {
-            return $this->forbidden('Não é permitido criar outro superadministrador.');
+        if ($isSuperadmin) {
+            // Somente o Superadministrador pode selecionar o perfil da nova conta.
+            $profile = Profile::findOrFail($validated['profile_id']);
+
+            if ($this->isSuperProfile($profile)) {
+                return $this->forbidden('Não é permitido criar outro superadministrador.');
+            }
+        } else {
+            // Segurança: ignora qualquer profile_id enviado pelo Administrador.
+            // A conta criada sempre será um Visitante.
+            $profile = Profile::where('nome', 'Visitante')->firstOrFail();
         }
 
         $user = User::create([
