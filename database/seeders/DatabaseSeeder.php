@@ -7,19 +7,16 @@ use Illuminate\Database\Seeder;
 class DatabaseSeeder extends Seeder
 {
     /**
-     * Popula o banco com os dados iniciais
-     * necessários ao funcionamento do sistema.
-     *
-     * @return void
+     * Dados iniciais do Sobral em Mapas.
+     * Cada seeder utiliza firstOrCreate para não duplicar cadastros.
      */
     public function run(): void
     {
-        // 1. Cadastra os perfis de acesso:
-        // Superadministrador, Administrador e Visitante.
+        // Perfis e conta principal de acesso.
         $this->call(ProfileSeeder::class);
-
-        // 2. Cadastra a conta inicial
-        // do Superadministrador.
         $this->call(UsersSeeder::class);
+
+        // Categorias e subcategorias, sem cadastrar camadas.
+        $this->call(CategoriasSubcategoriasSeeder::class);
     }
 }

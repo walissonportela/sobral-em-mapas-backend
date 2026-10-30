@@ -47,7 +47,8 @@ use App\Http\Controllers\Api\Admin\DashboardController;
 | - camadas e arquivos GeoJSON;
 | - links WMS;
 | - consulta de usuários e análise de solicitações de visitantes;
-| - sem permissão para criar, editar ou excluir contas existentes.
+| - pode criar, editar e excluir somente contas de Visitantes;
+| - não pode criar, editar ou excluir outros administradores.
 |
 | Visitante:
 | - acesso ao mapa;
@@ -337,8 +338,9 @@ Route::middleware([
 | 5. Usuários e solicitações - Superadministrador e Administrador
 |--------------------------------------------------------------------------
 |
-| O Administrador consulta usuários e analisa apenas solicitações de
-| Visitantes. O UserController valida essa restrição por perfil.
+| O Administrador pode criar, editar e excluir somente contas de Visitantes,
+| além de consultar usuários e analisar solicitações de Visitantes.
+| O UserController valida as restrições de perfil no servidor.
 |
 */
 
@@ -357,27 +359,8 @@ Route::middleware([
         Route::get('/', [UserController::class, 'index']);
         Route::get('/{id}', [UserController::class, 'show']);
 
-        // Ambos podem criar contas; o Controller limita Administradores a Visitantes.
+        // O Controller limita Administradores a contas de Visitantes.
         Route::post('/', [UserController::class, 'store']);
-    });
-
-/*
-|--------------------------------------------------------------------------
-| 6. Gestão de contas - somente Superadministrador
-|--------------------------------------------------------------------------
-|
-| Editar ou excluir contas é uma atribuição exclusiva do
-| Superadministrador. A criação de visitantes é compartilhada com o
-| Administrador, com a restrição aplicada no UserController.
-|
-*/
-
-Route::middleware([
-    'auth:sanctum',
-    'role:Superadministrador',
-])
-    ->prefix('admin/users')
-    ->group(function () {
         Route::put('/{id}', [UserController::class, 'update']);
         Route::delete('/{id}', [UserController::class, 'destroy']);
     });

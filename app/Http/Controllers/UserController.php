@@ -111,12 +111,16 @@ class UserController extends Controller
 
     public function update(Request $request, string $id)
     {
-        if (!$this->isSuperActor($request)) {
-            return $this->forbidden('Somente o superadministrador pode editar usuários.');
-        }
-
         $user = User::with('profile')->findOrFail($id);
         $actor = $request->user();
+        $isSuperadmin = $this->isSuperActor($request);
+        $adminEditingVisitor = $actor?->profile?->nome === 'Administrador'
+            && $user->profile?->nome === 'Visitante';
+
+        // Administradores só podem editar contas de Visitantes.
+        if (!$isSuperadmin && !$adminEditingVisitor) {
+            return $this->forbidden('Você só pode editar contas de Visitantes.');
+        }
         $editingOwnAccount = (int) $actor->id === (int) $user->id;
         $targetIsSuper = $this->isSuperProfile($user->profile);
 
@@ -134,6 +138,13 @@ class UserController extends Controller
         ]);
 
         $newProfile = Profile::findOrFail($validated['profile_id']);
+
+        // Mesmo enviando uma requisição manual, o Administrador não pode
+        // transformar um Visitante em Administrador ou Superadministrador.
+        if (!$isSuperadmin && $newProfile->nome !== 'Visitante') {
+            return $this->forbidden('Administradores não podem alterar o perfil de Visitantes.');
+        }
+
         $changingOwnProfile = $editingOwnAccount && (int) $newProfile->id !== (int) $user->profile_id;
 
         if ($changingOwnProfile) {
@@ -241,11 +252,14 @@ class UserController extends Controller
 
     public function destroy(Request $request, string $id)
     {
-        if (!$this->isSuperActor($request)) {
-            return $this->forbidden('Somente o superadministrador pode excluir usuários.');
-        }
-
         $user = User::with('profile')->findOrFail($id);
+        $isSuperadmin = $this->isSuperActor($request);
+        $adminDeletingVisitor = $request->user()?->profile?->nome === 'Administrador'
+            && $user->profile?->nome === 'Visitante';
+
+        if (!$isSuperadmin && !$adminDeletingVisitor) {
+            return $this->forbidden('Você só pode excluir contas de Visitantes.');
+        }
 
         if ($this->isSuperProfile($user->profile)) {
             return $this->forbidden('A conta do superadministrador não pode ser excluída.');
