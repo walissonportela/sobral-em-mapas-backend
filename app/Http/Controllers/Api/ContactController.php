@@ -21,8 +21,7 @@ class ContactController extends Controller
             'message' => 'required|string',
         ]);
 
-        // 2. DEBUG
-        logger()->info('CONTACT RECEBIDO', $data);
+        // Não registre dados pessoais enviados pelo formulário nos logs.
 
         // 3. ENVIA O EMAIL (Comentado para poupar limite do Mailtrap)
         /*
