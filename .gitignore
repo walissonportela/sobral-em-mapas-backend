@@ -15,3 +15,17 @@ yarn-error.log
 /.vscode
 public/css/*.css
 public/js/*.js
+
+# Arquivos gerados, segredos e rastros locais
+*.log
+*.sql
+*.sqlite
+*.bak
+*.backup
+.env.*
+!.env.example
+/public/C*/
+/public/laravel.log
+/storage/logs/
+/storage/framework/cache/
+/storage/framework/views/
