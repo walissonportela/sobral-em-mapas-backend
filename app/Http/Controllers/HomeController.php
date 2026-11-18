@@ -92,8 +92,21 @@ class HomeController extends Controller
 
     public function coord()
     {
-        // Reaproveitamos a mesma lógica de busca completa
-        $layers = Layer::with(['subcategory.category'])->get();
+        // Respeita exatamente as restrições de publicação utilizadas
+        // na página principal; nunca entrega camadas privadas/inativas.
+        $layers = Layer::with(['subcategory.category'])
+            ->where('is_active', true)
+            ->where('isPublic', true)
+            ->where(function ($query) {
+                $query->whereNull('subcategory')
+                    ->orWhereHas('subcategory', function ($subcategoryQuery) {
+                        $subcategoryQuery->where('is_active', true)
+                            ->whereHas('category', function ($categoryQuery) {
+                                $categoryQuery->where('is_active', true);
+                            });
+                    });
+            })
+            ->get();
         
         return response()->json([
             'status' => 'success',
