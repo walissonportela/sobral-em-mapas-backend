@@ -1,39 +1,45 @@
-# Revisão de segurança — Sobral em Mapas
+# Revisão de segurança — backend
 
-Esta branch contém correções de baixo impacto destinadas à revisão antes de uma implantação.
+Branch: `fix/security`. **Não há deploy automático deste conjunto de alterações.**
 
-## Modificações aplicadas
+## Proteções preparadas
+- Rotas web administrativas antigas removidas; gerenciamento fica na API com Sanctum + perfil.
+- Consultas públicas de camadas limitadas a publicadas e ativas.
+- Rate limiting em login, cadastro, contato, chatbot, estatísticas e WMS.
+- Proteção do proxy WMS: lista de hosts por ambiente, remoção de queries arbitrárias, operações GetMap/GetLegendGraphic fixas, limites de parâmetros, sem redirecionamentos e limites de tempo e tamanho.
+- GetCapabilities administrativo restringido ao mesmo host autorizado e sem redirecionamentos.
+- Tokens Sanctum expiram após 1440 minutos por padrão (ajuste em `SANCTUM_TOKEN_EXPIRATION`).
+- `/api/me` recusa contas cuja aprovação foi revogada.
+- Validações adicionais de entradas públicas.
+- Headers de segurança e `Cache-Control: no-store` nas respostas autenticadas.
+- 14 arquivos de logs/caches acidentais removidos do estado atual do Git; registros sensíveis de chatbot/contato reduzidos.
+- Portas do MySQL e phpMyAdmin ligadas somente ao loopback no Docker Compose.
+- Teste unitário da allowlist WMS e Action de lint PHP.
 
-- Remove as rotas administrativas legadas **sem autenticação** de `routes/web.php`. A API administrativa existente em `routes/api.php` continua exigindo `auth:sanctum` e `role:Superadministrador,Administrador`.
-- O endpoint público `/api/coord` retorna somente camadas ativas e publicadas, cujas categorias e subcategorias estejam ativas.
-- Aplica limites mais restritos por IP aos endpoints públicos de contato, chatbot, estatísticas e WMS, mantendo as rotas.
-- Remove chaves secretas escritas como fallback no código. A aplicação passa a depender de `APP_KEY` definida **no ambiente**, como já recomendado para o Laravel. O segredo de deploy passa a utilizar `DEPLOY_SECRET` em vez de um nome literal.
-- Bloqueia acesso HTTP a logs, backups, arquivos de configuração e artefatos internos em `public/.htaccess`.
-- Remove logs, caches e views gerados por engano que estavam rastreados no Git e amplia `.gitignore`.
-- Evita registrar mensagens de chatbot e dados de contato completos nos logs.
+## Variáveis de ambiente antes do merge/deploy
+- `APP_KEY`: **obrigatória**, manter a chave válida já usada no Railway. Não publicar nem gerar outra sem plano de migração.
+- `APP_ENV=production`, `APP_DEBUG=false`, `DEBUGBAR_ENABLED=false`.
+- `FRONTEND_URL`: URL exata do frontend publicado.
+- `WMS_ALLOWED_HOSTS`: hosts WMS confiáveis, separados por vírgulas (padrão: `geoserver.sobral.ce.gov.br`). Não cadastrar IPs privados ou domínios controlados por terceiros.
+- `SANCTUM_TOKEN_EXPIRATION=1440`: opcional, duração em minutos.
+- `DEPLOY_SECRET`: apenas se houver integração de deploy externa ativa, em ambiente seguro.
 
-## Antes de considerar o merge
+## Roteiro de testes antes de mesclar
+1. Instalar dependências existentes sem atualizar versões automaticamente.
+2. Executar `php artisan route:list` e `php artisan test` em um banco **de testes**, com .env válido.
+3. Confirmar ausência de rotas web públicas de escrita em `/admin`; `/api/admin/*` deve retornar 401 sem token e 403 para Visitante.
+4. Testar login, registro, sessão, logout, suspensão de aprovação e os perfis administrativos.
+5. Testar criação, edição e exclusão de usuários, categorias, subcategorias e camadas.
+6. Testar upload de GeoJSON, visualização privada por admin e pública apenas de camada publicada.
+7. Testar busca, Estatísticas, contato e chatbot; limite de 12 mensagens/min por IP pode afetar testes intensivos.
+8. Se WMS ainda for usado, testar URLs de servidores permitidos e verificar resposta 422 para URL interna/externa não autorizada.
+9. Verificar no Railway a localização e o acesso a volumes GeoJSON persistentes.
+10. Conferir cabeçalhos de segurança, CORS e erros em ambiente HTTPS.
 
-1. **Conferir no Railway `APP_KEY`**, garantindo que existe uma chave válida e que será mantida. Não redefinir a chave existente sem avaliar o impacto em criptografia/sessões. **Não colocar o valor no GitHub, issue ou pull request.**
-2. Conferir `APP_ENV=production`, `APP_DEBUG=false` e `DEBUGBAR_ENABLED=false` no Railway.
-3. Verificar HTTPS para frontend e API e configurar `FRONTEND_URL` estritamente para o domínio real.
-4. Confirmar se algum recurso ainda depende das antigas rotas web `/admin/*`. A interface React deve utilizar `/api/admin/*`.
-5. Executar `php -l` nos arquivos PHP alterados, `php artisan route:list` e os testes automatizados no ambiente local.
-6. Validar login, expiração/revogação de token, usuários pendentes, perfis Visitante/Administrador/Superadministrador, criação/edição/exclusão de categorias/camadas/usuários.
-7. Confirmar carregamento dos mapas GeoJSON, pré-visualização de upload, pesquisa e estatísticas.
-8. Verificar acesso não autenticado às rotas administrativas (esperado 401/403) e às camadas não publicadas (esperado 404).
-9. Testar os novos limites de requisição sem disparar tráfego excessivo nem testes intrusivos em produção.
-10. Verificar se o `/public/laravel.log` ou outros logs estiveram expostos anteriormente; remover da hospedagem e tratar o histórico Git como potencialmente comprometido. Se houver credenciais expostas, fazer rotação em Railway/Vercel/serviços pertinentes. Apenas remover o arquivo do commit mais recente **não apaga o histórico do repositório**.
-
-## Pendências intencionais (não aplicar sem avaliação de compatibilidade)
-
-- **SSRF no proxy WMS**: `GeoServerClient` aceita URLs dos links WMS previamente cadastrados. Para reduzir o risco sem quebrar serviços, implementar allowlist de hosts de destino, bloqueio de IPs privados, validação de DNS, prevenção de redirects e validação da operação OGC. Considerar desativar WMS completamente após confirmar que nenhuma camada o utiliza.
-- **Sanctum e frontend**: avaliar migração planejada de Bearer token em `localStorage` para cookies HttpOnly/Secure com proteção CSRF e domínios configurados. Não trocar apenas o frontend, pois isso quebra o login.
-- **Dependências**: atualizar Laravel 8 e dependências em branch separada com testes de regressão.
-- **CSP e demais headers**: planejar política considerando Leaflet, provedores de tiles, Vercel, GeoJSON e estilos inline; aplicar CSP estrita sem esses testes pode quebrar o mapa.
-- **Rate limit distribuído**: o middleware `throttle` depende do cache configurado; em múltiplas réplicas deve-se usar armazenamento compartilhado.
-- **Credenciais de desenvolvimento**: proteger portas MySQL/phpMyAdmin e senhas locais no Docker Compose; não usar essas credenciais em ambientes públicos.
-
-## Estado
-
-Mudanças limitadas a esta branch. **Não efetuar merge nem deploy antes da validação manual.**
+## Riscos e pendências que NÃO podem ser eliminados apenas com este PR
+- **Histórico Git:** logs e a chave que antes estava no código continuam nos commits antigos; verificar presença de segredos e rotacionar os comprometidos. Remover arquivos no commit atual não limpa o histórico.
+- **DNS rebinding:** a allowlist restringe o hostname, mas não fixa a conexão a um IP público resolvido; implantações mais sensíveis devem restringir o tráfego de saída na rede e/ou usar um proxy de saída dedicado.
+- **Framework:** Laravel 8 e dependências antigas requerem atualização coordenada, com migrações e testes de regressão. Não atualizar sem testes reais.
+- **Tokens SPA:** Bearer tokens continuam em `localStorage` por compatibilidade. Migrar para cookies HttpOnly, Secure e CSRF exige alteração coordenada de Laravel, CORS e React.
+- **Chaves em produção:** `APP_KEY` e outras variáveis de Railway/Vercel não são acessíveis por este PR.
+- **Produção:** análise estática não substitui testes de autorização e deploy em ambiente de homologação.
