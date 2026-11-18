@@ -22,10 +22,7 @@ class ChatbotController extends Controller
     $message = $request->input('message');
     $sender = $request->input('sender');
 
-    Log::info('Mensagem recebida:', [
-        'message' => $message,
-        'sender' => $sender
-    ]);
+    // Evita registrar conteúdo enviado pelo usuário.
 
     try {
         $responses = $this->chatbotService->sendMessage($message, $sender);
