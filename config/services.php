@@ -30,4 +30,7 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    // Hosts do proxy WMS, separados por vírgulas. Nunca são fornecidos pelo navegador.
+    'wms_allowed_hosts' => env('WMS_ALLOWED_HOSTS', 'geoserver.sobral.ce.gov.br'),
+
 ];

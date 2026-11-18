@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Infrastructure\Models\WmsLink;
+use App\Security\AllowedOutboundWms;
+use InvalidArgumentException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\Rule;
@@ -36,6 +38,13 @@ class WmsController extends Controller
                     'required',
                     'url',
                     'max:1000',
+                    function ($attribute, $value, $fail) {
+                        try {
+                            AllowedOutboundWms::assertAllowed((string) $value);
+                        } catch (InvalidArgumentException $exception) {
+                            $fail($exception->getMessage());
+                        }
+                    },
                 ],
                 'version' => [
                     'nullable',
@@ -91,6 +100,13 @@ class WmsController extends Controller
                     'required',
                     'url',
                     'max:1000',
+                    function ($attribute, $value, $fail) {
+                        try {
+                            AllowedOutboundWms::assertAllowed((string) $value);
+                        } catch (InvalidArgumentException $exception) {
+                            $fail($exception->getMessage());
+                        }
+                    },
                 ],
                 'version' => [
                     'nullable',
@@ -143,18 +159,17 @@ class WmsController extends Controller
     {
         $wmsLink = WmsLink::findOrFail($wmsLinkId);
 
-        $capabilitiesUrl = $this->buildCapabilitiesUrl(
-            $wmsLink->url,
-            $wmsLink->version ?? '1.3.0'
-        );
-
         try {
+            $capabilitiesUrl = $this->buildCapabilitiesUrl(
+                AllowedOutboundWms::assertAllowed($wmsLink->url),
+                $wmsLink->version ?? '1.3.0'
+            );
             $response = Http::withOptions([
-                    'connect_timeout' => 15,
-                    'timeout' => 90,
+                    'connect_timeout' => 3,
+                    'allow_redirects' => false,
                 ])
-                ->retry(2, 1500)
-                ->accept('*/*')
+                ->timeout(10)
+                ->accept('application/xml')
                 ->get($capabilitiesUrl);
 
             if (!$response->successful()) {
@@ -167,6 +182,12 @@ class WmsController extends Controller
             }
 
             $xmlContent = $response->body();
+            if (strlen($xmlContent) > 2_000_000) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Documento WMS excede o limite permitido.',
+                ], 422);
+            }
 
             $layers = $this->extractLayersFromCapabilities($xmlContent);
 
@@ -182,10 +203,15 @@ class WmsController extends Controller
                 'total' => count($layers),
                 'layers' => $layers,
             ]);
+        } catch (InvalidArgumentException $exception) {
+            return response()->json([
+                'success' => false,
+                'message' => $exception->getMessage(),
+            ], 422);
         } catch (\Throwable $exception) {
             return response()->json([
                 'success' => false,
-                'message' => 'Erro ao consultar o WMS: ' . $exception->getMessage(),
+                'message' => 'Não foi possível consultar o servidor WMS.',
                 'url' => $capabilitiesUrl,
             ], 500);
         }

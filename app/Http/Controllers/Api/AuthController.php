@@ -186,6 +186,13 @@ class AuthController extends Controller
      */
     public function me(Request $request)
     {
+        if (!$request->user()->approved) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Sua conta não está aprovada.',
+            ], 403);
+        }
+
         return response()->json([
             'success' => true,
             'user' => $request->user()->load('profile'),
