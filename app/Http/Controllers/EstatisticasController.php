@@ -11,7 +11,7 @@ class EstatisticasController extends Controller
 {
     public function registrar(Request $request)
 {
-    Log::info("📩 [estatisticas] Payload recebido", ['all' => $request->all()]);
+    // Dados agregados de uso não devem ser registrados integralmente nos logs.
 
     $validated = $request->validate([
         'session_id'               => 'required|string|max:50',  // aumentei p/ não cortar

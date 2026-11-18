@@ -1,3 +1,9 @@
+
+    # Nao expor logs, dumps, backups, credenciais e artefatos internos.
+    <FilesMatch "(?i)^(?:\\.env(?:\\..*)?|.*\\.(?:log|bak|backup|sql|sqlite|ini|conf|yml|yaml|phar|lock))$">
+        Require all denied
+    </FilesMatch>
+
 <IfModule mod_rewrite.c>
     <IfModule mod_negotiation.c>
         Options -MultiViews -Indexes
