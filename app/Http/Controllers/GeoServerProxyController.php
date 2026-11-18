@@ -47,6 +47,12 @@ class GeoServerProxyController extends Controller
             ], 502);
         }
 
+        if (strlen($response->body()) > 8_000_000) {
+            return $this->corsJsonResponse([
+                'message' => 'Imagem WMS excede o limite permitido.',
+            ], 502);
+        }
+
         $contentType = $response->header('Content-Type') ?: 'application/octet-stream';
         if (!preg_match('~^image/(png|jpeg|gif|webp)(?:\\s*;|$)~i', $contentType)) {
             // Servidores OGC também podem devolver exceções XML com HTTP 200.
@@ -93,6 +99,12 @@ class GeoServerProxyController extends Controller
         if ($response->body() === '') {
             return $this->corsJsonResponse([
                 'message' => 'O servidor WMS retornou uma legenda vazia.',
+            ], 502);
+        }
+
+        if (strlen($response->body()) > 8_000_000) {
+            return $this->corsJsonResponse([
+                'message' => 'Imagem WMS excede o limite permitido.',
             ], 502);
         }
 
