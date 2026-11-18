@@ -18,14 +18,10 @@ class ChatbotAdapter
     public function sendMessageToChatbot($message, $sender)
     {
         try {
-            Log::info('Enviando mensagem para o chatbot via adaptador.', ['message' => $message, 'sender' => $sender]);
-
             $response = Http::post($this->baseUrl, [
                 'message' => $message,
                 'sender' => $sender,
             ]);
-
-            Log::info('Resposta do chatbot recebida no adaptador: ', $response->json());
 
             return $response->json();
         } catch (\Exception $e) {
