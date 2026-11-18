@@ -15,9 +15,9 @@ class EstatisticasController extends Controller
 
     $validated = $request->validate([
         'session_id'               => 'required|string|max:50',  // aumentei p/ não cortar
-        'mapas_selecionados'       => 'required|array',
-        'tempo_total'              => 'required|integer|min:0',
-        'mapa_recomendado_por_mapa'=> 'nullable|array',
+        'mapas_selecionados'       => 'required|array|max:100',
+        'tempo_total'              => 'required|integer|min:0|max:86400',
+        'mapa_recomendado_por_mapa'=> 'nullable|array|max:100',
     ]);
 
     $sessionId   = $validated['session_id'];
@@ -35,6 +35,10 @@ class EstatisticasController extends Controller
     \DB::beginTransaction();
     try {
         foreach ($selecionados as $mapa => $totalMs) {
+            if (!is_scalar($mapa) || strlen((string) $mapa) > 180 ||
+                !is_numeric($totalMs) || (float) $totalMs < 0 || (float) $totalMs > 86400000) {
+                continue;
+            }
             // busca a linha existente (se houver)
             $row = \App\Infrastructure\Models\Estatistica::firstOrNew([
                 'ip_usuario' => $sessionId,
