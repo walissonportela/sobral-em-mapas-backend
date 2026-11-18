@@ -19,8 +19,13 @@ class ChatbotController extends Controller
 {
     Log::info('Método sendMessage do ChatbotController foi chamado.');
 
-    $message = $request->input('message');
-    $sender = $request->input('sender');
+    $validated = $request->validate([
+        'message' => ['required', 'string', 'max:2000'],
+        'sender' => ['required', 'string', 'max:80'],
+    ]);
+
+    $message = $validated['message'];
+    $sender = $validated['sender'];
 
     // Evita registrar conteúdo enviado pelo usuário.
 
