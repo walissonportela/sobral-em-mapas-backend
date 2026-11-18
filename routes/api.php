@@ -92,7 +92,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
 Route::get('/map-data', [HomeController::class, 'index']);
 Route::get('/tiles', [HomeController::class, 'tile']);
-Route::get('/coord', [HomeController::class, 'coord']);
+Route::get('/coord', [HomeController::class, 'coord'])->middleware('throttle:60,1');
 
 // GeoJSON armazenados no Laravel: apenas camadas publicadas no mapa.
 Route::get('/geodata/{filename}', [
@@ -109,27 +109,27 @@ Route::get('/geodata/{filename}', [
 Route::get('/proxy-wms', [
     GeoServerProxyController::class,
     'proxyWms',
-]);
+])->middleware('throttle:240,1');
 
 Route::get('/layer/legend', [
     GeoServerProxyController::class,
     'getLegendGraphic',
-]);
+])->middleware('throttle:120,1');
 
 Route::post('/send-message', [
     ChatbotController::class,
     'sendMessage',
-])->name('chat.sendMessage');
+])->middleware('throttle:12,1')->name('chat.sendMessage');
 
 Route::post('/estatisticas', [
     EstatisticasController::class,
     'registrar',
-]);
+])->middleware('throttle:60,1');
 
 Route::post('/contact', [
     ContactController::class,
     'send',
-]);
+])->middleware('throttle:6,1');
 
 /*
 |--------------------------------------------------------------------------
