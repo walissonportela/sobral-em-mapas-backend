@@ -18,7 +18,9 @@ class ChatbotAdapter
     public function sendMessageToChatbot($message, $sender)
     {
         try {
-            $response = Http::post($this->baseUrl, [
+            $response = Http::withOptions(['allow_redirects' => false])
+                ->timeout(8)
+                ->post($this->baseUrl, [
                 'message' => $message,
                 'sender' => $sender,
             ]);
