@@ -7,6 +7,7 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Log;
+use InvalidArgumentException;
 
 class GeoServerProxyController extends Controller
 {
@@ -21,6 +22,8 @@ class GeoServerProxyController extends Controller
     {
         try {
             $response = $this->geoServerService->getWmsLayer($request->all());
+        } catch (InvalidArgumentException $exception) {
+            return $this->corsJsonResponse(['message' => $exception->getMessage()], 422);
         } catch (ConnectionException $exception) {
             Log::warning('WMS indisponível ao solicitar mapa.', [
                 'error' => $exception->getMessage(),
@@ -45,7 +48,7 @@ class GeoServerProxyController extends Controller
         }
 
         $contentType = $response->header('Content-Type') ?: 'application/octet-stream';
-        if (stripos($contentType, 'image/') !== 0) {
+        if (!preg_match('~^image/(png|jpeg|gif|webp)(?:\\s*;|$)~i', $contentType)) {
             // Servidores OGC também podem devolver exceções XML com HTTP 200.
             return $this->corsJsonResponse([
                 'message' => 'O servidor WMS retornou uma resposta que não é uma imagem.',
@@ -68,6 +71,8 @@ class GeoServerProxyController extends Controller
 
         try {
             $response = $this->geoServerService->getLegendGraphic($layer, $wmsLinkId);
+        } catch (InvalidArgumentException $exception) {
+            return $this->corsJsonResponse(['message' => $exception->getMessage()], 422);
         } catch (ConnectionException $exception) {
             Log::warning('WMS indisponível ao solicitar legenda.', [
                 'error' => $exception->getMessage(),
